@@ -1,29 +1,35 @@
 ﻿// Copyright (c) MOSA Project. Licensed under the New BSD License.
 
-using Mosa.ClassLib;
+using Mosa.Utility.RSP.Command;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.IO.Pipes;
+using System.Diagnostics;
+using System.Text;
 
 namespace Mosa.Utility.RSP
 {
-	public delegate void CallBack(ReplayPacket replayPacket);
+	public delegate void CallBack(GDBCommand command);
 
 	public sealed class GDBClient
 	{
-		private byte PacketSeperator = (byte)'$';
+		private static readonly Encoding TextEncoding = Encoding.ASCII;
 
-		private object sync = new object();
-		private Stream stream = null;
-		private byte[] receivedData = new byte[1];
-		private Queue<byte> packetData = new Queue<byte>();
-		private int packetSeperatorCount;
-		private Queue<CommandPacket> commandPackets = new Queue<CommandPacket>();
-		private Dictionary<CommandPacket, CallBack> callBacks = new Dictionary<CommandPacket, CallBack>();
-		private CommandPacket currentCommandPacket = null;
+		private const char Prefix = '$';
+		private const char Suffix = '#';
 
-		public Stream Stream
+		private readonly object sync = new object();
+		private GDBNetworkStream stream = null;
+
+		private readonly byte[] receivedByte = new byte[1];
+		private readonly List<byte> receivedData = new List<byte>();
+
+		private readonly Queue<GDBCommand> commandQueue = new Queue<GDBCommand>();
+
+		private GDBCommand currentCommand = null;
+
+		private static readonly byte[] breakData = new byte[1] { 3 };
+
+		public GDBNetworkStream Stream
 		{
 			get
 			{
@@ -35,13 +41,14 @@ namespace Mosa.Utility.RSP
 
 				if (IsConnected)
 				{
-					stream.BeginRead(receivedData, 0, 1, ReadAsyncCallback, null);
+					SetReadCallBack();
 				}
 			}
 		}
 
-		public GDBClient()
+		public GDBClient(GDBNetworkStream stream = null)
 		{
+			Stream = stream;
 		}
 
 		public bool IsConnected
@@ -51,85 +58,182 @@ namespace Mosa.Utility.RSP
 				if (stream == null)
 					return false;
 
-				if (stream is NamedPipeClientStream)
-					return (stream as NamedPipeClientStream).IsConnected;
-
-				if (stream is GDBNetworkStream)
-					return (stream as GDBNetworkStream).IsConnected;
-
-				return false;
+				return stream.IsConnected;
 			}
 		}
 
-		private void AddPacketData(byte data)
+		private void SetReadCallBack()
 		{
-			lock (sync)
-			{
-				packetData.Enqueue(data);
-
-				if (data == PacketSeperator)
-				{
-					packetSeperatorCount++;
-				}
-			}
-
-			// if packetSeperatorCount > 0
-			// todo
+			stream.BeginRead(receivedByte, 0, 1, ReadAsyncCallback, null);
 		}
 
 		private void ReadAsyncCallback(IAsyncResult ar)
 		{
-			try
-			{
-				stream.EndRead(ar);
-
-				AddPacketData(receivedData[0]);
-
-				stream.BeginRead(receivedData, 0, 1, ReadAsyncCallback, null);
-			}
-			catch
-			{
-				// nothing for now
-			}
-		}
-
-		public void SendCommandAsync(CommandPacket commandPacket, CallBack callBack)
-		{
 			lock (sync)
 			{
-				commandPackets.Enqueue(commandPacket);
-
-				if (callBack != null)
+				try
 				{
-					callBacks.Add(commandPacket, callBack);
+					stream.EndRead(ar);
+
+					var data = receivedByte[0];
+
+					receivedData.Add(data);
+
+					//Debug.Write((char)data);
+
+					IncomingPatcket();
+				}
+				catch (Exception e)
+				{
+					// nothing for now
+					Debug.WriteLine(e.ToString());
+				}
+				finally
+				{
+					SetReadCallBack();
+
+					// try to send more packets
 				}
 			}
 
-			// send now if possible
-			SendPacket();
+			SendPackets();
 		}
 
-		private void SendPacket()
+		public void SendCommand(GDBCommand command)
 		{
 			lock (sync)
 			{
-				// waiting for current command to reply or wait for command to send
-				if (currentCommandPacket != null || commandPackets.Count == 0)
-					return;
+				commandQueue.Enqueue(command);
+			}
 
-				var commandPacket = commandPackets.Dequeue();
+			// try to send packets
+			SendPackets();
+		}
 
-				SendPacketData(commandPacket);
+		public void SendBreak()
+		{
+			lock (sync)
+			{
+				commandQueue.Clear();
+
+				Debug.WriteLine("SENT: BREAK");
+
+				currentCommand = new GetReasonHalted();
+				stream.Write(breakData, 0, 1);
 			}
 		}
 
-		private void SendPacketData(CommandPacket commandPacket)
+		private void SendPackets()
 		{
-			var data = PacketBinConverter.ToBinary(commandPacket);
+			lock (sync)
+			{
+				// waiting for current command to reply
+				if (currentCommand != null)
+					return;
 
-			currentCommandPacket = commandPacket;
+				if (commandQueue.Count == 0)
+					return;
 
-			stream.Write(data, 0, data.Length);
+				currentCommand = commandQueue.Dequeue();
+
+				Debug.WriteLine("SENT: " + currentCommand.Pack);
+
+				var data = ToBinary(currentCommand);
+				stream.Write(data, 0, data.Length);
+			}
+		}
+
+		private void IncomingPatcket()
+		{
+			int len = receivedData.Count;
+
+			if (len == 0)
+				return;
+
+			if (len == 1 && receivedData[0] == '+')
+			{
+				receivedData.Clear();
+				return;
+			}
+
+			if (len == 1 && receivedData[0] == '-')
+			{
+				// todo: re-transmit
+				receivedData.Clear();
+				return;
+			}
+
+			if (len >= 4 && receivedData[0] == '$' && receivedData[len - 3] == '#')
+			{
+				Debug.WriteLine("RECEIVED: " + Encoding.UTF8.GetString(receivedData.ToArray()));
+
+				if (currentCommand == null)
+				{
+					receivedData.Clear();
+					return;
+				}
+
+				var data = Rle.Decode(receivedData, 1, receivedData.Count - 3).ToArray();
+
+				bool ok = false;
+
+				if (data != null)
+				{
+					// Compare checksum
+					byte receivedChecksum = HexToDecimal(receivedData[len - 2], receivedData[len - 1]);
+					uint calculatedChecksum = Checksum.Calculate(data);
+
+					if (receivedChecksum == calculatedChecksum)
+					{
+						ok = true;
+					}
+				}
+
+				currentCommand.IsResponseOk = ok;
+				currentCommand.ResponseData = data;
+
+				if (ok)
+				{
+					currentCommand.Decode();
+				}
+
+				var cmd = currentCommand;
+				currentCommand = null;
+				receivedData.Clear();
+
+				cmd.Callback?.Invoke(cmd);
+
+				return;
+			}
+
+			return;
+		}
+
+		private static byte[] ToBinary(GDBCommand packet)
+		{
+			var binPacket = new StringBuilder();
+			binPacket.Append(Prefix);
+			binPacket.Append(packet.Pack);
+			binPacket.Append(Suffix);
+			binPacket.Append(Checksum.Calculate(TextEncoding.GetBytes(packet.Pack)).ToString("x2"));
+
+			return TextEncoding.GetBytes(binPacket.ToString());
+		}
+
+		private static byte HexToDecimal(byte v)
+		{
+			if (v >= '0' && v <= '9')
+				return (byte)(v - (byte)'0');
+			else
+				return (byte)(v - (byte)'a' + 10);
+		}
+
+		public static byte HexToDecimal(byte h, byte l)
+		{
+			h = HexToDecimal(h);
+			l = HexToDecimal(l);
+
+			return (byte)((h * 16) + l);
 		}
 	}
 }

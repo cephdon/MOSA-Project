@@ -8,7 +8,7 @@ namespace Mosa.DeviceDriver.ISA
 	/// <summary>
 	/// Standard Keyboard Device Driver
 	/// </summary>
-	[ISADeviceDriver(AutoLoad = true, BasePort = 0x60, PortRange = 1, AltBasePort = 0x64, AltPortRange = 1, IRQ = 1, Platforms = PlatformArchitecture.X86AndX64)]
+	//[ISADeviceDriver(AutoLoad = true, BasePort = 0x60, PortRange = 1, AltBasePort = 0x64, AltPortRange = 1, IRQ = 1, Platforms = PlatformArchitecture.X86AndX64)]
 	public class StandardKeyboard : HardwareDevice, IDevice, IHardwareDevice, IKeyboardDevice
 	{
 		/// <summary>
@@ -176,7 +176,9 @@ namespace Mosa.DeviceDriver.ISA
 		public byte GetScanCode()
 		{
 			if (!IsFIFODataAvailable())
+			{
 				return 0;
+			}
 
 			return GetFromFIFO();
 		}

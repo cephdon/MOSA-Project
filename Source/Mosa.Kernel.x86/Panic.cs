@@ -24,6 +24,7 @@ namespace Mosa.Kernel.x86
 		public static uint ErrorCode = 0;
 		public static uint CS = 0;
 		public static uint EFLAGS = 0;
+		public static uint CR2 = 0;
 
 		public static void Setup()
 		{
@@ -82,6 +83,8 @@ namespace Mosa.Kernel.x86
 			Screen.Write(EBP, 16, 8);
 			Screen.Write(" EFLAGS: ");
 			Screen.Write(EFLAGS, 16, 8);
+			Screen.Write(" CR2: ");
+			Screen.Write(CR2, 16, 8);
 			Screen.NextLine();
 			Screen.Write("EAX: ");
 			Screen.Write(EAX, 16, 8);
@@ -96,8 +99,8 @@ namespace Mosa.Kernel.x86
 			Screen.Write(EDX, 16, 8);
 			Screen.Write(" EDI: ");
 			Screen.Write(EDI, 16, 8);
-			Screen.Write(" EDX: ");
-			Screen.Write(EDX, 16, 8);
+			Screen.Write(" ESI: ");
+			Screen.Write(ESI, 16, 8);
 			Screen.Write(" ERROR: ");
 			Screen.Write(ErrorCode, 16, 2);
 			Screen.Write(" IRQ: ");

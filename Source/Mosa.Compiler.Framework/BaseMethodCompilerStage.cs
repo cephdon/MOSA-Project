@@ -49,11 +49,6 @@ namespace Mosa.Compiler.Framework
 		protected MosaTypeLayout TypeLayout { get; private set; }
 
 		/// <summary>
-		/// Holds the calling convention interface
-		/// </summary>
-		protected BaseCallingConvention CallingConvention { get; private set; }
-
-		/// <summary>
 		/// Holds the native pointer size
 		/// </summary>
 		protected int NativePointerSize { get; private set; }
@@ -94,9 +89,19 @@ namespace Mosa.Compiler.Framework
 		/// </value>
 		protected CompilerMethodData MethodData { get; private set; }
 
+		/// <summary>
+		/// Gets the method.
+		/// </summary>
+		/// <value>
+		/// The method.
+		/// </value>
+		protected MosaMethod Method { get { return MethodCompiler.Method; } }
+
 		protected Operand ConstantZero { get { return MethodCompiler.ConstantZero; } }
 
 		protected Operand StackFrame { get { return MethodCompiler.StackFrame; } }
+
+		protected Operand StackPointer { get { return MethodCompiler.StackPointer; } }
 
 		#endregion Properties
 
@@ -115,15 +120,14 @@ namespace Mosa.Compiler.Framework
 		/// <summary>
 		/// Setups the specified compiler.
 		/// </summary>
-		/// <param name="compiler">The compiler.</param>
-		void IMethodCompilerStage.Initialize(BaseMethodCompiler compiler)
+		/// <param name="methodCompiler">The compiler.</param>
+		void IMethodCompilerStage.Initialize(BaseMethodCompiler methodCompiler)
 		{
-			MethodCompiler = compiler;
-			BasicBlocks = compiler.BasicBlocks;
-			Architecture = compiler.Architecture;
-			TypeSystem = compiler.TypeSystem;
-			TypeLayout = compiler.TypeLayout;
-			CallingConvention = Architecture.CallingConvention;
+			MethodCompiler = methodCompiler;
+			BasicBlocks = methodCompiler.BasicBlocks;
+			Architecture = methodCompiler.Architecture;
+			TypeSystem = methodCompiler.TypeSystem;
+			TypeLayout = methodCompiler.TypeLayout;
 			NativePointerSize = Architecture.NativePointerSize;
 			NativeAlignment = Architecture.NativeAlignment;
 			NativeInstructionSize = Architecture.NativeInstructionSize;
@@ -195,16 +199,6 @@ namespace Mosa.Compiler.Framework
 		public Operand AllocateVirtualRegisterOrStackSlot(MosaType type)
 		{
 			return MethodCompiler.AllocateVirtualRegisterOrStackSlot(type);
-		}
-
-		/// <summary>
-		/// Stores the on stack.
-		/// </summary>
-		/// <param name="type">The type.</param>
-		/// <returns></returns>
-		public bool StoreOnStack(MosaType type)
-		{
-			return MethodCompiler.StoreOnStack(type);
 		}
 
 		#endregion Methods
@@ -601,24 +595,18 @@ namespace Mosa.Compiler.Framework
 			MethodData.Counters.Update(name, count);
 		}
 
-		/// <summary>
-		/// Dumps this instance.
-		/// </summary>
-		protected void Dump(bool before)
-		{
-			Debug.WriteLine(string.Empty);
-
-			Debug.WriteLine("METHOD: " + MethodCompiler.Method.FullName);
-			Debug.WriteLine("STAGE : " + (before ? "[BEFORE] " : "[AFTER] ") + GetType().Name);
-			Debug.WriteLine(string.Empty);
-
-			for (int index = 0; index < BasicBlocks.Count; index++)
-				for (Context ctx = new Context(BasicBlocks[index]); !ctx.IsBlockEndInstruction; ctx.GotoNext())
-					if (!ctx.IsEmpty)
-						Debug.WriteLine(ctx.ToString());
-		}
-
 		#region Helpers
+
+		/// <summary>
+		/// Gets the size of the type.
+		/// </summary>
+		/// <param name="type">The type.</param>
+		/// <param name="align">if set to <c>true</c> [align].</param>
+		/// <returns></returns>
+		public int GetTypeSize(MosaType type, bool align)
+		{
+			return MethodCompiler.GetReferenceOrTypeSize(type, align);
+		}
 
 		/// <summary>
 		/// Gets the size of the instruction.

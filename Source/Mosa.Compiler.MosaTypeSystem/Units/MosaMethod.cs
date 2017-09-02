@@ -75,7 +75,7 @@ namespace Mosa.Compiler.MosaTypeSystem
 
 		internal MosaMethod Clone()
 		{
-			MosaMethod result = (MosaMethod)base.MemberwiseClone();
+			var result = (MosaMethod)base.MemberwiseClone();
 
 			result.GenericArguments = (result.genericArguments = new List<MosaType>(genericArguments)).AsReadOnly();
 
@@ -102,7 +102,7 @@ namespace Mosa.Compiler.MosaTypeSystem
 
 		public class Mutator : MosaUnit.MutatorBase
 		{
-			private MosaMethod method;
+			private readonly MosaMethod method;
 
 			internal Mutator(MosaMethod method)
 				: base(method)
@@ -160,7 +160,7 @@ namespace Mosa.Compiler.MosaTypeSystem
 			{
 				if (method.Signature != null && method.DeclaringType != null)
 				{
-					StringBuilder methodName = new StringBuilder();
+					var methodName = new StringBuilder();
 					methodName.Append(method.Name);
 					if (GenericArguments.Count > 0)
 					{
@@ -173,8 +173,9 @@ namespace Mosa.Compiler.MosaTypeSystem
 						}
 						methodName.Append(">");
 					}
-					method.ShortName = SignatureName.GetSignature(methodName.ToString(), method.Signature, true);
-					method.FullName = SignatureName.GetSignature(method.DeclaringType.FullName + "::" + methodName.ToString(), method.Signature, false);
+
+					method.ShortName = SignatureName.GetSignature(methodName.ToString(), method.Signature, true, true);
+					method.FullName = SignatureName.GetSignature(method.DeclaringType.FullName + "::" + methodName, method.Signature, false, true);
 				}
 			}
 		}

@@ -1,7 +1,7 @@
 ﻿// Copyright (c) MOSA Project. Licensed under the New BSD License.
 
 using Mosa.Compiler.Framework;
-using Mosa.Compiler.Framework.Stages;
+using Mosa.Compiler.Framework.CompilerStages;
 using Mosa.Compiler.MosaTypeSystem;
 
 namespace Mosa.Utility.Aot
@@ -23,7 +23,8 @@ namespace Mosa.Utility.Aot
 				new MethodExceptionLookupTableStage(),
 				new MetadataStage(),
 				new LinkerFinalizationStage(),
-				CompilerOptions.MapFile != null ? new MapFileGenerationStage() : null
+				CompilerOptions.MapFile != null ? new MapFileGenerationStage() : null,
+				CompilerOptions.DebugFile != null ? new DebugFileGenerationStage() : null
 			});
 		}
 

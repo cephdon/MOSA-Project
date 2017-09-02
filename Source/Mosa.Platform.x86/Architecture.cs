@@ -5,7 +5,7 @@ using Mosa.Compiler.Framework;
 using Mosa.Compiler.Framework.IR;
 using Mosa.Compiler.Framework.Stages;
 using Mosa.Compiler.Linker.Elf;
-using Mosa.Compiler.MosaTypeSystem;
+using Mosa.Platform.x86.CompilerStages;
 using Mosa.Platform.x86.Stages;
 using System.Diagnostics;
 
@@ -76,7 +76,7 @@ namespace Mosa.Platform.x86
 		/// <summary>
 		/// Specifies the architecture features to use in generated code.
 		/// </summary>
-		private ArchitectureFeatureFlags architectureFeatures;
+		private readonly ArchitectureFeatureFlags architectureFeatures;
 
 		/// <summary>
 		/// Initializes a new instance of the <see cref="Architecture"/> class.
@@ -85,7 +85,6 @@ namespace Mosa.Platform.x86
 		private Architecture(ArchitectureFeatureFlags architectureFeatures)
 		{
 			this.architectureFeatures = architectureFeatures;
-			CallingConvention = new DefaultCallingConvention(this);
 		}
 
 		/// <summary>
@@ -140,6 +139,38 @@ namespace Mosa.Platform.x86
 		}
 
 		/// <summary>
+		/// Retrieves the scratch register of the x86.
+		/// </summary>
+		public override Register ScratchRegister
+		{
+			get { return GeneralPurposeRegister.EDX; }
+		}
+
+		/// <summary>
+		/// Gets the return32 bit register.
+		/// </summary>
+		public override Register Return32BitRegister
+		{
+			get { return GeneralPurposeRegister.EAX; }
+		}
+
+		/// <summary>
+		/// Gets the return64 bit register.
+		/// </summary>
+		public override Register Return64BitRegister
+		{
+			get { return GeneralPurposeRegister.EDX; }
+		}
+
+		/// <summary>
+		/// Gets the return floating point register.
+		/// </summary>
+		public override Register ReturnFloatingPointRegister
+		{
+			get { return SSE2Register.XMM0; }
+		}
+
+		/// <summary>
 		/// Retrieves the exception register of the architecture.
 		/// </summary>
 		public override Register ExceptionRegister
@@ -162,6 +193,22 @@ namespace Mosa.Platform.x86
 		{
 			get { return null; }
 		}
+
+		/// <summary>
+		/// Gets the offset of first local.
+		/// </summary>
+		/// <value>
+		/// The offset of first local.
+		/// </value>
+		public override int OffsetOfFirstLocal { get { return 0; } }
+
+		/// <summary>
+		/// Gets the offset of first parameter.
+		/// </summary>
+		/// <value>
+		/// The offset of first parameter.
+		/// </value>
+		public override int OffsetOfFirstParameter { get { return 8; } }
 
 		/// <summary>
 		/// Gets the name of the platform.
@@ -210,10 +257,14 @@ namespace Mosa.Platform.x86
 		/// <summary>
 		/// Extends the method compiler pipeline with x86 specific stages.
 		/// </summary>
-		/// <param name="methodCompilerPipeline">The method compiler pipeline to extend.</param>
-		public override void ExtendMethodCompilerPipeline(CompilerPipeline methodCompilerPipeline)
+		/// <param name="compilerPipeline">The method compiler pipeline to extend.</param>
+		public override void ExtendMethodCompilerPipeline(CompilerPipeline compilerPipeline)
 		{
-			methodCompilerPipeline.InsertAfterLast<PlatformStubStage>(
+			compilerPipeline.InsertBefore<LowerIRStage>(
+				new IRSubstitutionStage()
+			);
+
+			compilerPipeline.InsertAfterLast<PlatformStubStage>(
 				new IMethodCompilerStage[]
 				{
 					new PlatformIntrinsicStage(),
@@ -226,31 +277,17 @@ namespace Mosa.Platform.x86
 					new FloatingPointStage(),
 				});
 
-			methodCompilerPipeline.InsertAfterLast<StackLayoutStage>(
+			compilerPipeline.InsertAfterLast<StackLayoutStage>(
 				new BuildStackStage()
 			);
 
-			methodCompilerPipeline.InsertBefore<CodeGenerationStage>(
+			compilerPipeline.InsertBefore<CodeGenerationStage>(
 				new FinalTweakTransformationStage()
 			);
 
-			methodCompilerPipeline.InsertBefore<CodeGenerationStage>(
+			compilerPipeline.InsertBefore<CodeGenerationStage>(
 				new JumpOptimizationStage()
 			);
-		}
-
-		/// <summary>
-		/// Gets the type memory requirements.
-		/// </summary>
-		/// <param name="typeLayout">The type layouts.</param>
-		/// <param name="type">The type.</param>
-		/// <param name="size">Receives the memory size of the type.</param>
-		/// <param name="alignment">Receives alignment requirements of the type.</param>
-		public override void GetTypeRequirements(MosaTypeLayout typeLayout, MosaType type, out int size, out int alignment)
-		{
-			alignment = 4;
-
-			size = type.IsValueType ? typeLayout.GetTypeSize(type) : 4;
 		}
 
 		/// <summary>
@@ -271,7 +308,7 @@ namespace Mosa.Platform.x86
 		public override void InsertMoveInstruction(Context context, Operand destination, Operand source)
 		{
 			BaseInstruction instruction = X86.Mov;
-			InstructionSize size = InstructionSize.Size32;
+			var size = InstructionSize.Size32;
 
 			if (destination.IsR4)
 			{
@@ -315,7 +352,7 @@ namespace Mosa.Platform.x86
 		public override void InsertLoadInstruction(Context context, Operand destination, Operand source, Operand offset)
 		{
 			BaseInstruction instruction = X86.MovLoad;
-			InstructionSize size = InstructionSize.Size32;
+			var size = InstructionSize.Size32;
 
 			if (destination.IsR4)
 			{
@@ -411,54 +448,9 @@ namespace Mosa.Platform.x86
 		/// </summary>
 		/// <param name="context">The context.</param>
 		/// <param name="destination">The destination.</param>
-		/// <param name="source">The source.</param>
-		public override void InsertJumpInstruction(Context context, Operand destination)
-		{
-			context.AppendInstruction(X86.Jmp, destination);
-		}
-
-		/// <summary>
-		/// Inserts the jump instruction.
-		/// </summary>
-		/// <param name="context">The context.</param>
-		/// <param name="Destination">The destination.</param>
 		public override void InsertJumpInstruction(Context context, BasicBlock destination)
 		{
 			context.AppendInstruction(X86.Jmp, destination);
-		}
-
-		/// <summary>
-		/// Inserts the call instruction.
-		/// </summary>
-		/// <param name="context">The context.</param>
-		/// <param name="source">The source.</param>
-		public override void InsertCallInstruction(Context context, Operand source)
-		{
-			context.AppendInstruction(X86.Call, null, source);
-		}
-
-		/// <summary>
-		/// Inserts the add instruction.
-		/// </summary>
-		/// <param name="context">The context.</param>
-		/// <param name="Destination">The destination.</param>
-		/// <param name="Source">The source.</param>
-		public override void InsertAddInstruction(Context context, Operand destination, Operand source1, Operand source2)
-		{
-			Debug.Assert(source1 == destination);
-			context.AppendInstruction(X86.Add, destination, source1, source2);
-		}
-
-		/// <summary>
-		/// Inserts the sub instruction.
-		/// </summary>
-		/// <param name="context">The context.</param>
-		/// <param name="Destination">The destination.</param>
-		/// <param name="Source">The source.</param>
-		public override void InsertSubInstruction(Context context, Operand destination, Operand source1, Operand source2)
-		{
-			Debug.Assert(source1 == destination);
-			context.AppendInstruction(X86.Sub, destination, source1, source2);
 		}
 
 		/// <summary>
@@ -468,7 +460,7 @@ namespace Mosa.Platform.x86
 		/// <returns></returns>
 		public override bool IsInstructionMove(BaseInstruction instruction)
 		{
-			return (instruction == X86.Mov || instruction == X86.Movsd || instruction == X86.Movss);
+			return instruction == X86.Mov || instruction == X86.Movsd || instruction == X86.Movss;
 		}
 	}
 }

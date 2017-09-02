@@ -11,7 +11,7 @@ namespace Mosa.DeviceSystem
 	public class DiskControllerManager
 	{
 		/// <summary>
-		///
+		/// The device manager
 		/// </summary>
 		protected DeviceManager deviceManager;
 
@@ -29,16 +29,19 @@ namespace Mosa.DeviceSystem
 		/// </summary>
 		/// <param name="diskControllerDevice">The disk controller device.</param>
 		/// <returns></returns>
-		private LinkedList<IDevice> CreateDevices(IDiskControllerDevice diskControllerDevice)
+		private List<IDevice> CreateDevices(IDiskControllerDevice diskControllerDevice)
 		{
-			var devices = new LinkedList<IDevice>();
+			var devices = new List<IDevice>();
 
 			for (uint drive = 0; drive < diskControllerDevice.MaximunDriveCount; drive++)
 			{
 				if (diskControllerDevice.Open(drive))
 				{
+					if (diskControllerDevice.GetTotalSectors(drive) == 0)
+						continue;
+
 					var diskDevice = new DiskDevice(diskControllerDevice, drive, false);
-					devices.AddLast(diskDevice as IDevice);
+					devices.Add(diskDevice as IDevice);
 				}
 			}
 

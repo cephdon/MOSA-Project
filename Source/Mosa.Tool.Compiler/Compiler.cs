@@ -163,6 +163,15 @@ namespace Mosa.Tool.Compiler
 			);
 
 			optionSet.Add(
+				"debug-info=",
+				"Generate a debug info {file} of the produced binary.",
+				delegate (string file)
+				{
+					compiler.CompilerOptions.DebugFile = file;
+				}
+			);
+
+			optionSet.Add(
 				@"sa|enable-static-alloc",
 				@"Performs static allocations at compile time.",
 				enable => compiler.CompilerOptions.EnableStaticAllocations = enable != null
@@ -393,7 +402,7 @@ namespace Mosa.Tool.Compiler
 			switch (format.ToLower())
 			{
 				case "multibootHeader-0.7":
-				case "mb0.7": return delegate { return new Mosa.Platform.x86.Stages.Multiboot0695Stage(); };
+				case "mb0.7": return delegate { return new Mosa.Platform.x86.CompilerStages.Multiboot0695Stage(); };
 				default: throw new NotImplementCompilerException(string.Format("Unknown or unsupported boot format {0}.", format));
 			}
 		}

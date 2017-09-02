@@ -9,29 +9,29 @@ namespace Mosa.TestWorld.x86.Tests
 		public ReflectionTest()
 			: base("Reflection")
 		{
-			testMethods.AddLast(PointerTest);
-			testMethods.AddLast(HandleTest);
-			testMethods.AddLast(FindTypeOfTest);
-			testMethods.AddLast(FindTypeByNameTest);
-			testMethods.AddLast(CompareTypeHandlesTest);
-			testMethods.AddLast(TypeHandleFromObjectTest);
-			testMethods.AddLast(DeclaringTypeTest);
-			testMethods.AddLast(ElementTypeTest);
-			testMethods.AddLast(TypeActivator);
+			testMethods.Add(PointerTest);
+			testMethods.Add(HandleTest);
+			testMethods.Add(FindTypeOfTest);
+			testMethods.Add(FindTypeByNameTest);
+			testMethods.Add(CompareTypeHandlesTest);
+			testMethods.Add(TypeHandleFromObjectTest);
+			testMethods.Add(DeclaringTypeTest);
+			testMethods.Add(ElementTypeTest);
+			testMethods.Add(TypeActivator);
 		}
 
 		public static bool PointerTest()
 		{
 			IntPtr ptr1 = new IntPtr(30);
 			IntPtr ptr2 = new IntPtr(30);
-			return (ptr1 == ptr2);
+			return ptr1 == ptr2;
 		}
 
 		public static bool HandleTest()
 		{
 			RuntimeTypeHandle handle1 = new RuntimeTypeHandle();
 			RuntimeTypeHandle handle2 = new RuntimeTypeHandle();
-			return (handle1 == handle2);
+			return handle1 == handle2;
 		}
 
 		public static bool FindTypeOfTest()
@@ -43,13 +43,13 @@ namespace Mosa.TestWorld.x86.Tests
 		public static bool FindTypeByNameTest()
 		{
 			Type foundType = Type.GetType("System.String");
-			return (foundType != null);
+			return foundType != null;
 		}
 
 		public static bool CompareTypeHandlesTest()
 		{
 			Type foundType = Type.GetType("System.String");
-			return (foundType != null && foundType == Type.GetTypeFromHandle(foundType.TypeHandle));
+			return foundType != null && foundType == Type.GetTypeFromHandle(foundType.TypeHandle);
 		}
 
 		public static bool TypeHandleFromObjectTest()

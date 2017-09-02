@@ -32,6 +32,7 @@
     <NoStdLib>false</NoStdLib>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <Prefer32Bit>false</Prefer32Bit>
+    <NoWarn>168,162</NoWarn>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugSymbols>True</DebugSymbols>
@@ -41,8 +42,9 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <Prefer32Bit>false</Prefer32Bit>
+    <NoWarn>168,162</NoWarn>
   </PropertyGroup>
   <PropertyGroup>
   </PropertyGroup>
@@ -118,6 +120,7 @@
       <DependentUpon>EnumTests.tt</DependentUpon>
     </Compile>
     <Compile Include="GenericMixedTest.cs" />
+    <Compile Include="NullCheckOptimizationTests.cs" />
     <Compile Include="RemTests.cs" />
     <Compile Include="LargeSwitchTest.cs" />
     <Compile Include="LdargaTests.cs">
@@ -130,7 +133,7 @@
     <Compile Include="ListTests.cs" />
     <Compile Include="LinkedListTests.cs" />
     <Compile Include="NewObjectTests.cs" />
-    <Compile Include="OptimizationTest.cs" />
+    <Compile Include="OptimizationTests.cs" />
     <Compile Include="RegisterAllocatorTests.cs" />
     <Compile Include="SpecificTests.cs" />
     <Compile Include="ForeachTests.cs">

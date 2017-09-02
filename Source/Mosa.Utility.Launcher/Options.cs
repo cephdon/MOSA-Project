@@ -3,6 +3,7 @@
 using Mosa.Compiler.Common;
 using Mosa.Compiler.Linker;
 using Mosa.Utility.BootImage;
+using System.Collections.Generic;
 using System.IO;
 
 namespace Mosa.Utility.Launcher
@@ -23,7 +24,7 @@ namespace Mosa.Utility.Launcher
 
 		public ImageFormat ImageFormat { get; set; }
 
-		public uint MemoryInMB { get; set; }
+		public uint EmulatorMemoryInMB { get; set; }
 
 		public bool EnableSSA { get; set; }
 
@@ -33,6 +34,8 @@ namespace Mosa.Utility.Launcher
 
 		public bool EnableInlinedMethods { get; set; }
 
+		public bool EnableIRLongOperand { get; set; }
+
 		public int InlinedIRMaximum { get; set; }
 
 		public bool GenerateNASMFile { get; set; }
@@ -40,6 +43,8 @@ namespace Mosa.Utility.Launcher
 		public bool GenerateASMFile { get; set; }
 
 		public bool GenerateMapFile { get; set; }
+
+		public bool GenerateDebugFile { get; set; }
 
 		public LinkerFormatType LinkerFormatType { get; set; }
 
@@ -83,8 +88,13 @@ namespace Mosa.Utility.Launcher
 
 		public bool LaunchGDB { get; set; }
 
+		public bool LaunchMosaDebugger { get; set; }
+
+		public List<IncludeFile> IncludeFiles { get; set; }
+
 		public Options()
 		{
+			IncludeFiles = new List<IncludeFile>();
 			EnableSSA = true;
 			EnableIROptimizations = true;
 			EnableSparseConditionalConstantPropagation = true;
@@ -93,7 +103,7 @@ namespace Mosa.Utility.Launcher
 			BootFormat = BootFormat.Multiboot_0_7;
 			PlatformType = PlatformType.X86;
 			LinkerFormatType = LinkerFormatType.Elf32;
-			MemoryInMB = 128;
+			EmulatorMemoryInMB = 128;
 			DestinationDirectory = Path.Combine(Path.GetTempPath(), "MOSA");
 			FileSystem = FileSystem.FAT16;
 			DebugConnectionOption = DebugConnectionOption.None;
@@ -117,6 +127,9 @@ namespace Mosa.Utility.Launcher
 			GenerateASMFile = false;
 			EnableQemuGDB = false;
 			LaunchGDB = false;
+			LaunchMosaDebugger = false;
+			GenerateDebugFile = false;
+			EnableIRLongOperand = false;
 		}
 
 		public void LoadArguments(string[] args)
@@ -134,6 +147,7 @@ namespace Mosa.Utility.Launcher
 					case "-launch": LaunchEmulator = true; continue;
 					case "-launch-off": LaunchEmulator = false; continue;
 					case "-map": GenerateMapFile = true; continue;
+					case "-debuginfo": GenerateDebugFile = true; continue;
 					case "-asm": GenerateASMFile = true; continue;
 					case "-nasm": GenerateNASMFile = true; continue;
 					case "-qemu": Emulator = EmulatorType.Qemu; continue;
@@ -162,6 +176,7 @@ namespace Mosa.Utility.Launcher
 					case "-optimization-ir-off": EnableIROptimizations = false; continue;
 					case "-optimization-sccp-off": EnableSparseConditionalConstantPropagation = false; continue;
 					case "-all-optimization-off": EnableIROptimizations = false; EnableSparseConditionalConstantPropagation = false; EnableInlinedMethods = false; EnableSSA = false; continue;
+					case "-ir-long-operand": EnableIRLongOperand = true; continue;
 					case "-inline-level": InlinedIRMaximum = (int)args[++i].ParseHexOrDecimal(); continue;
 					case "-threading-off": UseMultipleThreadCompiler = false; continue;
 					case "-video": VBEVideo = true; continue;

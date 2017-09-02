@@ -68,7 +68,7 @@ namespace Mosa.UnitTest.Collection
 
 		private static void DelegateParametersTarget(int a, int b)
 		{
-			status = a * 10000 + b;
+			status = (a * 10000) + b;
 		}
 
 		#endregion DelegateParameters
@@ -104,7 +104,7 @@ namespace Mosa.UnitTest.Collection
 
 		private static int DelegateParametersReturnTarget(int a, int b)
 		{
-			return a * 10000 + b;
+			return (a * 10000) + b;
 		}
 
 		#endregion DelegateParametersReturn
@@ -272,6 +272,56 @@ namespace Mosa.UnitTest.Collection
 
 		#endregion InstanceDelegate
 
+		private delegate int ReturnInt();
+
+		public static int InlineDelegate1()
+		{
+			ReturnInt o = delegate { return 124; };
+
+			var i = o();
+
+			return i;
+		}
+
+		private static ReturnInt here;
+
+		public static int InlineDelegate2()
+		{
+			here = delegate { return 124; };
+
+			var i = here();
+
+			return i;
+		}
+
+		private class MyDelegateObject
+		{
+			public ReturnInt Delegate;
+		}
+
+		public static int InlineDelegate3()
+		{
+			var o = new MyDelegateObject { Delegate = delegate { return 124; } };
+
+			return o.Delegate();
+		}
+
+		private static readonly MyDelegateObject myObject = new MyDelegateObject();
+
+		public static int InlineDelegate4()
+		{
+			myObject.Delegate = delegate { return 124; };
+
+			return 0;
+		}
+
+		public static int InlineDelegate5()
+		{
+			myObject.Delegate = delegate { return 124; };
+
+			return myObject.Delegate();
+		}
+
 		private class Worker
 		{
 			public int Value = 10;
@@ -293,9 +343,10 @@ namespace Mosa.UnitTest.Collection
 
 		public static int TestInstanceDelegate1(int a)
 		{
-			Worker w = new Worker();
-			w.Value = 25;
-
+			var w = new Worker()
+			{
+				Value = 25
+			};
 			SumValue executeSum = w.SumValue;
 
 			int sum = executeSum(a);
@@ -305,9 +356,10 @@ namespace Mosa.UnitTest.Collection
 
 		public static int TestInstanceDelegate2(int a, int b)
 		{
-			Worker w = new Worker();
-			w.Value = 25;
-
+			var w = new Worker()
+			{
+				Value = 25
+			};
 			SumPlusValue executeSum = w.SumPlusValue;
 
 			int sum = executeSum(a, b);

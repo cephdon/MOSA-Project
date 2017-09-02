@@ -82,6 +82,7 @@ namespace Mosa.Utility.Launcher
 				compiler.CompilerOptions.EnableSparseConditionalConstantPropagation = Options.EnableSparseConditionalConstantPropagation;
 				compiler.CompilerOptions.EnableInlinedMethods = Options.EnableInlinedMethods;
 				compiler.CompilerOptions.InlinedIRMaximum = Options.InlinedIRMaximum;
+				compiler.CompilerOptions.EnableIRLongOperand = Options.EnableIRLongOperand;
 				compiler.CompilerOptions.OutputFile = CompiledFile;
 
 				compiler.CompilerOptions.Architecture = SelectArchitecture(Options.PlatformType);
@@ -102,6 +103,11 @@ namespace Mosa.Utility.Launcher
 				if (Options.GenerateMapFile)
 				{
 					compiler.CompilerOptions.MapFile = Path.Combine(Options.DestinationDirectory, $"{Path.GetFileNameWithoutExtension(Options.SourceFile)}.map");
+				}
+
+				if (Options.GenerateDebugFile)
+				{
+					compiler.CompilerOptions.DebugFile = Path.Combine(Options.DestinationDirectory, $"{Path.GetFileNameWithoutExtension(Options.SourceFile)}.debug");
 				}
 
 				if (!Directory.Exists(Options.DestinationDirectory))
@@ -150,7 +156,7 @@ namespace Mosa.Utility.Launcher
 
 					if (Options.ImageFormat == ImageFormat.VMDK)
 					{
-						CreateVMDK(ImageFile);
+						CreateVMDK();
 					}
 				}
 
@@ -168,7 +174,7 @@ namespace Mosa.Utility.Launcher
 			}
 			catch (Exception e)
 			{
-				Console.WriteLine(e.ToString());
+				AddOutput(e.ToString());
 			}
 			finally
 			{
@@ -202,6 +208,11 @@ namespace Mosa.Utility.Launcher
 			bootImageOptions.IncludeFiles.Add(new IncludeFile(compiledFile, "main.exe"));
 
 			bootImageOptions.IncludeFiles.Add(new IncludeFile("TEST.TXT", Encoding.ASCII.GetBytes("This is a test file.")));
+
+			foreach (var include in Options.IncludeFiles)
+			{
+				bootImageOptions.IncludeFiles.Add(include);
+			}
 
 			bootImageOptions.VolumeLabel = "MOSABOOT";
 
@@ -249,6 +260,12 @@ namespace Mosa.Utility.Launcher
 			}
 
 			File.WriteAllBytes(Path.Combine(isoDirectory, "isolinux.cfg"), GetResource(@"syslinux", "syslinux.cfg"));
+
+			foreach (var include in Options.IncludeFiles)
+			{
+				File.WriteAllBytes(Path.Combine(isoDirectory, include.Filename), include.Content);
+			}
+
 			File.Copy(compiledFile, Path.Combine(isoDirectory, "main.exe"));
 
 			ImageFile = Path.Combine(Options.DestinationDirectory, $"{Path.GetFileNameWithoutExtension(Options.SourceFile)}.iso");
@@ -295,6 +312,11 @@ namespace Mosa.Utility.Launcher
 				archive.ExtractToDirectory(Path.Combine(isoDirectory, "boot", "grub"));
 			}
 
+			foreach (var include in Options.IncludeFiles)
+			{
+				File.WriteAllBytes(Path.Combine(isoDirectory, include.Filename), include.Content);
+			}
+
 			File.Copy(compiledFile, Path.Combine(isoDirectory, "boot", "main.exe"));
 
 			ImageFile = Path.Combine(Options.DestinationDirectory, $"{Path.GetFileNameWithoutExtension(Options.SourceFile)}.iso");
@@ -304,7 +326,7 @@ namespace Mosa.Utility.Launcher
 			LaunchApplication(AppLocations.mkisofs, arg, true);
 		}
 
-		private void CreateVMDK(string compiledFile)
+		private void CreateVMDK()
 		{
 			var vmdkFile = Path.Combine(Options.DestinationDirectory, $"{Path.GetFileNameWithoutExtension(Options.SourceFile)}.vmdk");
 
@@ -335,12 +357,11 @@ namespace Mosa.Utility.Launcher
 
 		private void GenerateASMFile()
 		{
-			// Need a new instance of translator every time as they aren't thread safe
-			var translator = new IntelTranslator();
-
-			// Configure the translator to output instruction addresses and instruction binary as hex
-			translator.IncludeAddress = true;
-			translator.IncludeBinary = true;
+			var translator = new IntelTranslator()
+			{
+				IncludeAddress = true,
+				IncludeBinary = true
+			};
 
 			var asmfile = Path.Combine(Options.DestinationDirectory, Path.GetFileNameWithoutExtension(Options.SourceFile) + ".asm");
 
@@ -423,7 +444,7 @@ namespace Mosa.Utility.Launcher
 		{
 			switch (bootFormat)
 			{
-				case BootFormat.Multiboot_0_7: return delegate { return new Mosa.Platform.x86.Stages.Multiboot0695Stage(); };
+				case BootFormat.Multiboot_0_7: return delegate { return new Mosa.Platform.x86.CompilerStages.Multiboot0695Stage(); };
 				default: return null;
 			}
 		}

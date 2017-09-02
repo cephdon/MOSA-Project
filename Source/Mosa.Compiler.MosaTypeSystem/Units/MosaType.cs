@@ -124,11 +124,11 @@ namespace Mosa.Compiler.MosaTypeSystem
 		{
 			get
 			{
-				return TypeCode == MosaTypeCode.ReferenceType ||
-						TypeCode == MosaTypeCode.String ||
-						TypeCode == MosaTypeCode.Object ||
-						TypeCode == MosaTypeCode.Array ||
-						TypeCode == MosaTypeCode.SZArray;
+				return TypeCode == MosaTypeCode.ReferenceType
+					|| TypeCode == MosaTypeCode.String
+					|| TypeCode == MosaTypeCode.Object
+					|| TypeCode == MosaTypeCode.Array
+					|| TypeCode == MosaTypeCode.SZArray;
 			}
 		}
 
@@ -136,10 +136,11 @@ namespace Mosa.Compiler.MosaTypeSystem
 		{
 			get
 			{
-				return TypeCode == MosaTypeCode.ValueType ||
-						TypeCode == MosaTypeCode.Boolean ||
-						TypeCode == MosaTypeCode.Char ||
-						IsInteger || IsR;
+				return TypeCode == MosaTypeCode.ValueType
+					|| TypeCode == MosaTypeCode.Boolean
+					|| TypeCode == MosaTypeCode.Char
+					|| IsInteger
+					|| IsR;
 			}
 		}
 
@@ -180,7 +181,7 @@ namespace Mosa.Compiler.MosaTypeSystem
 
 		internal MosaType Clone()
 		{
-			MosaType result = (MosaType)base.MemberwiseClone();
+			var result = (MosaType)base.MemberwiseClone();
 
 			result.Methods = (result.methods = new List<MosaMethod>(methods)).AsReadOnly();
 			result.Fields = (result.fields = new List<MosaField>(fields)).AsReadOnly();
@@ -227,9 +228,9 @@ namespace Mosa.Compiler.MosaTypeSystem
 			return null;
 		}
 
-		public class Mutator : MosaUnit.MutatorBase
+		public class Mutator : MutatorBase
 		{
-			private MosaType type;
+			private readonly MosaType type;
 
 			internal Mutator(MosaType type)
 				: base(type)
@@ -288,8 +289,8 @@ namespace Mosa.Compiler.MosaTypeSystem
 			public override void Dispose()
 			{
 				SignatureName.UpdateType(type);
-				StringBuilder fName = new StringBuilder();
-				StringBuilder sName = new StringBuilder();
+				var fName = new StringBuilder();
+				var sName = new StringBuilder();
 
 				if (type.DeclaringType != null && type.DeclaringType != type.ElementType)
 				{
@@ -311,7 +312,6 @@ namespace Mosa.Compiler.MosaTypeSystem
 
 					type.FullName = fName.ToString();
 					type.ShortName = sName.ToString();
-
 				}
 				else if (type.DeclaringType != null)
 				{

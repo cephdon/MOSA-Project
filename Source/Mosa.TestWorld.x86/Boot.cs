@@ -8,7 +8,7 @@ using Mosa.TestWorld.x86.Tests;
 namespace Mosa.TestWorld.x86
 {
 	/// <summary>
-	///
+	/// Boot
 	/// </summary>
 	public static class Boot
 	{
@@ -96,6 +96,7 @@ namespace Mosa.TestWorld.x86
 		{
 			while (true)
 			{
+				var result = Mosa.UnitTest.Collection.BoxingTests.EqualsI4(10);
 				Native.Hlt();
 			}
 		}

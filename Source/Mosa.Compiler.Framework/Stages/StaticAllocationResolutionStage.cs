@@ -12,7 +12,7 @@ namespace Mosa.Compiler.Framework.Stages
 	{
 		protected override void Run()
 		{
-			if (MethodCompiler.Method.Name != @".cctor")
+			if (MethodCompiler.Method.Name != ".cctor")
 				return;
 
 			AttemptToStaticallyAllocateObjects();
@@ -44,7 +44,7 @@ namespace Mosa.Compiler.Framework.Stages
 					if (node.IsEmpty)
 						continue;
 
-					if ((node.Instruction is NewobjInstruction && !StoreOnStack(node.Result.Type)) || node.Instruction is NewarrInstruction)
+					if ((node.Instruction is NewobjInstruction && !MosaTypeLayout.IsStoredOnStack(node.Result.Type)) || node.Instruction is NewarrInstruction)
 					{
 						list.Add(node);
 					}
@@ -71,7 +71,7 @@ namespace Mosa.Compiler.Framework.Stages
 			}
 
 			// Allocate a linker symbol to refer to this allocation. Use the destination field name as the linker symbol name.
-			var symbolName = MethodCompiler.Linker.CreateSymbol(assignmentField.FullName + @"<<$cctor", SectionKind.ROData, Architecture.NativeAlignment, typeSize);
+			var symbolName = MethodCompiler.Linker.CreateSymbol(assignmentField.FullName + "<<$cctor", SectionKind.ROData, Architecture.NativeAlignment, typeSize);
 
 			// Try to get typeDefinitionSymbol if allocatedType isn't a value type
 			string typeDefinitionSymbol = GetTypeDefinition(allocatedType);
@@ -81,8 +81,8 @@ namespace Mosa.Compiler.Framework.Stages
 				MethodCompiler.Linker.Link(LinkType.AbsoluteAddress, PatchType.I4, symbolName, 0, SectionKind.ROData, typeDefinitionSymbol, 0);
 			}
 
-			Operand staticAddress = Operand.CreateManagedSymbol(assignmentField.FieldType, symbolName.Name);
-			Operand result1 = AllocateVirtualRegister(assignmentField.FieldType);
+			var staticAddress = Operand.CreateSymbol(assignmentField.FieldType, symbolName.Name);
+			var result1 = AllocateVirtualRegister(assignmentField.FieldType);
 
 			//Operand result2 = AllocateVirtualRegister(assignmentField.FieldType);
 

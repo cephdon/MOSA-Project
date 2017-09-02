@@ -5,9 +5,15 @@ using Mosa.Compiler.Framework.IR;
 
 namespace Mosa.Platform.x86.Intrinsic
 {
+	/// <summary>
+	///
+	/// </summary>
+	/// <seealso cref="Mosa.Compiler.Framework.IIntrinsicInternalMethod" />
 	[ReplacementTarget("Mosa.Runtime.Intrinsic::CreateInstanceSimple")]
 	internal class CreateInstanceSimple : IIntrinsicInternalMethod
 	{
+		private const string InternalMethodName = "CreateInstanceSimple";
+
 		#region Methods
 
 		/// <summary>
@@ -21,7 +27,7 @@ namespace Mosa.Platform.x86.Intrinsic
 			var thisObject = context.Operand2;
 			var result = context.Result;
 
-			context.SetInstruction(IRInstruction.Call, null, ctor, thisObject);
+			context.SetInstruction(IRInstruction.CallDynamic, null, ctor, thisObject);
 			context.AppendInstruction(IRInstruction.MoveInteger, result, thisObject);
 		}
 

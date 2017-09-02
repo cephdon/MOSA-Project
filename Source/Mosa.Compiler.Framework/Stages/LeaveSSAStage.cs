@@ -7,9 +7,10 @@ using System.Diagnostics;
 namespace Mosa.Compiler.Framework.Stages
 {
 	/// <summary>
-	///
+	/// Leave SSA Stage
 	/// </summary>
-	public class LeaveSSA : BaseMethodCompilerStage
+	/// <seealso cref="Mosa.Compiler.Framework.BaseMethodCompilerStage" />
+	public class LeaveSSAStage : BaseMethodCompilerStage
 	{
 		private Dictionary<Operand, Operand> finalVirtualRegisters;
 
@@ -47,13 +48,13 @@ namespace Mosa.Compiler.Framework.Stages
 					{
 						var op = context.GetOperand(i);
 
-						if (op != null && op.IsSSA)
+						if (op?.IsSSA == true)
 						{
 							context.SetOperand(i, GetFinalVirtualRegister(op));
 						}
 					}
 
-					if (context.Result != null && context.Result.IsSSA)
+					if (context.Result?.IsSSA == true)
 					{
 						context.Result = GetFinalVirtualRegister(context.Result);
 					}
@@ -70,9 +71,7 @@ namespace Mosa.Compiler.Framework.Stages
 
 		private Operand GetFinalVirtualRegister(Operand operand)
 		{
-			Operand final;
-
-			if (!finalVirtualRegisters.TryGetValue(operand, out final))
+			if (!finalVirtualRegisters.TryGetValue(operand, out Operand final))
 			{
 				if (operand.SSAVersion == 0)
 					final = operand.SSAParent;
@@ -116,7 +115,9 @@ namespace Mosa.Compiler.Framework.Stages
 
 			context.GotoPrevious();
 
-			while (context.IsEmpty || context.Instruction is CompareIntegerBranch || context.Instruction is Jmp)
+			while (context.IsEmpty
+				|| context.Instruction is CompareIntegerBranch
+				|| context.Instruction is Jmp)
 			{
 				context.GotoPrevious();
 			}
@@ -129,7 +130,7 @@ namespace Mosa.Compiler.Framework.Stages
 
 			if (destination != source)
 			{
-				if (StoreOnStack(destination.Type))
+				if (MosaTypeLayout.IsStoredOnStack(destination.Type))
 				{
 					context.AppendInstruction(IRInstruction.MoveCompound, destination, source);
 					context.MosaType = destination.Type;

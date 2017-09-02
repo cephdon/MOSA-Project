@@ -2,6 +2,7 @@
 
 using Mosa.Compiler.Framework.CIL;
 using Mosa.Compiler.Framework.IR;
+using Mosa.Compiler.Trace;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -9,75 +10,30 @@ using System.Diagnostics;
 namespace Mosa.Compiler.Framework.Stages
 {
 	/// <summary>
-	///
+	/// Operand Assignment Stage
 	/// </summary>
 	public sealed class OperandAssignmentStage : BaseMethodCompilerStage
 	{
-		/// <summary>
-		///
-		/// </summary>
-		private sealed class WorkItem
-		{
-			/// <summary>
-			///
-			/// </summary>
-			public BasicBlock Block;
-
-			/// <summary>
-			///
-			/// </summary>
-			public Stack<Operand> IncomingStack;
-
-			/// <summary>
-			/// Initializes a new instance of the <see cref="WorkItem"/> class.
-			/// </summary>
-			/// <param name="block">The block.</param>
-			/// <param name="incomingStack">The incoming stack.</param>
-			public WorkItem(BasicBlock block, Stack<Operand> incomingStack)
-			{
-				Block = block;
-				IncomingStack = incomingStack;
-			}
-		}
-
-		/// <summary>
-		///
-		/// </summary>
-		private Queue<WorkItem> workList;
-
-		/// <summary>
-		///
-		/// </summary>
+		private Queue<BasicBlock> worklist = new Queue<BasicBlock>();
 		private BitArray processed;
+		private List<InstructionNode> dupNodes = new List<InstructionNode>();
+		private TraceLog trace;
 
-		/// <summary>
-		///
-		/// </summary>
-		private BitArray enqueued;
+		private Dictionary<BasicBlock, List<Operand>> outgoingMoves = new Dictionary<BasicBlock, List<Operand>>();
+		private Dictionary<BasicBlock, List<Operand>> incomingMoves = new Dictionary<BasicBlock, List<Operand>>();
 
-		/// <summary>
-		///
-		/// </summary>
-		private Stack<Operand>[] outgoingStack;
-
-		/// <summary>
-		///
-		/// </summary>
-		private Stack<Operand>[] scheduledMoves;
-
-		/// <summary>
-		/// The dup nodes
-		/// </summary>
-		private List<InstructionNode> dupNodes;
+		private static readonly List<Operand> empty = new List<Operand>();
 
 		protected override void Run()
 		{
 			if (MethodCompiler.Method.Code.Count == 0)
 				return;
 
-			workList = new Queue<WorkItem>();
+			trace = CreateTraceLog();
 
-			foreach (BasicBlock headBlock in BasicBlocks.HeadBlocks)
+			processed = new BitArray(BasicBlocks.Count, false);
+
+			foreach (var headBlock in BasicBlocks.HeadBlocks)
 			{
 				Trace(headBlock);
 			}
@@ -87,12 +43,12 @@ namespace Mosa.Compiler.Framework.Stages
 
 		protected override void Finish()
 		{
-			workList = null;
-			outgoingStack = null;
-			scheduledMoves = null;
+			worklist = null;
 			processed = null;
-			enqueued = null;
+			outgoingMoves = null;
+			incomingMoves = null;
 			dupNodes = null;
+			trace = null;
 		}
 
 		/// <summary>
@@ -101,67 +57,128 @@ namespace Mosa.Compiler.Framework.Stages
 		/// <param name="headBlock">The head block.</param>
 		private void Trace(BasicBlock headBlock)
 		{
-			outgoingStack = new Stack<Operand>[BasicBlocks.Count];
-			scheduledMoves = new Stack<Operand>[BasicBlocks.Count];
-			processed = new BitArray(BasicBlocks.Count);
-			processed.SetAll(false);
-			enqueued = new BitArray(BasicBlocks.Count);
-			enqueued.SetAll(false);
+			worklist.Enqueue(headBlock);
+			incomingMoves.Add(headBlock, empty); // no incoming moves
 
-			processed.Set(headBlock.Sequence, true);
-			workList.Enqueue(new WorkItem(headBlock, new Stack<Operand>()));
-
-			while (workList.Count > 0)
+			while (worklist.Count > 0)
 			{
-				AssignOperands(workList.Dequeue());
+				AssignOperands(worklist.Dequeue());
 			}
 		}
 
 		/// <summary>
 		/// Assigns the operands.
 		/// </summary>
-		/// <param name="workItem">The work item.</param>
-		private void AssignOperands(WorkItem workItem)
+		/// <param name="block">The block.</param>
+		private void AssignOperands(BasicBlock block)
 		{
-			var operandStack = workItem.IncomingStack;
-			var block = workItem.Block;
+			if (processed.Get(block.Sequence))
+				return;
 
-			operandStack = CreateMovesForIncomingStack(block, operandStack);
+			var incoming = incomingMoves[block];
 
-			//System.Diagnostics.Debug.WriteLine("IN:    Block: " + block.Label + " Operand Stack Count: " + operandStack.Count);
+			if (incoming == null)
+			{
+				worklist.Enqueue(block); // re-queue for later
+				return;
+			}
+
+			Debug.Assert(incoming != null);
+
+			var operandStack = new Stack<Operand>(incoming);
+
+			if (trace.Active)
+			{
+				trace.Log("IN:    Block: " + block + " Operand Stack Count: " + operandStack.Count.ToString());
+				foreach (var op in operandStack)
+				{
+					trace.Log("       -> " + op);
+				}
+			}
+
 			AssignOperands(block, operandStack);
 
-			//System.Diagnostics.Debug.WriteLine("AFTER: Block: " + block.Label + " Operand Stack Count: " + operandStack.Count);
-			operandStack = CreateScheduledMoves(block, operandStack);
+			if (trace.Active)
+			{
+				trace.Log("AFTER: Block: " + block + " Operand Stack Count: " + operandStack.Count.ToString());
+				foreach (var op in operandStack)
+				{
+					trace.Log("       -> " + op);
+				}
+			}
 
-			outgoingStack[block.Sequence] = operandStack;
+			var outgoing = new List<Operand>(operandStack);
+
+			outgoing.Reverse();
+
 			processed.Set(block.Sequence, true);
 
-			foreach (var b in block.NextBlocks)
-			{
-				if (enqueued.Get(b.Sequence))
-					continue;
+			outgoingMoves.Add(block, outgoing);
 
-				workList.Enqueue(new WorkItem(b, new Stack<Operand>(operandStack)));
-				enqueued.Set(b.Sequence, true);
+			foreach (var next in block.NextBlocks)
+			{
+				worklist.Enqueue(next);
+
+				incomingMoves.TryGetValue(next, out List<Operand> nextIncoming);
+
+				if (next.PreviousBlocks.Count == 0)
+				{
+					nextIncoming = empty;   // should never happen!
+				}
+				else if (next.PreviousBlocks.Count == 1)
+				{
+					nextIncoming = outgoing;
+				}
+				else
+				{
+					if (nextIncoming == null)
+					{
+						nextIncoming = new List<Operand>(outgoing.Count);
+
+						foreach (var operand in outgoing)
+						{
+							var register = AllocateVirtualRegisterOrStackSlot(operand.Type);
+							nextIncoming.Add(register);
+						}
+					}
+
+					AddMoves(block, outgoing, nextIncoming);
+				}
+
+				incomingMoves[next] = nextIncoming;
 			}
 		}
 
-		/// <summary>
-		/// Creates the scheduled moves.
-		/// </summary>
-		/// <param name="block">The block.</param>
-		/// <param name="operandStack">The operand stack.</param>
-		/// <returns></returns>
-		private Stack<Operand> CreateScheduledMoves(BasicBlock block, Stack<Operand> operandStack)
+		private void AddMoves(BasicBlock block, List<Operand> sourceOperands, List<Operand> destinationOperands)
 		{
-			if (scheduledMoves[block.Sequence] != null)
+			var context = new Context(block.Last);
+
+			context.GotoPrevious();
+
+			while (context.IsEmpty
+				|| context.Instruction.FlowControl == FlowControl.ConditionalBranch
+				|| context.Instruction.FlowControl == FlowControl.UnconditionalBranch
+				|| context.Instruction.FlowControl == FlowControl.Return
+				|| context.Instruction == IRInstruction.Jmp)
 			{
-				CreateOutgoingMoves(block, new Stack<Operand>(operandStack), new Stack<Operand>(scheduledMoves[block.Sequence]));
-				operandStack = new Stack<Operand>(scheduledMoves[block.Sequence]);
-				scheduledMoves[block.Sequence] = null;
+				context.GotoPrevious();
 			}
-			return operandStack;
+
+			for (int i = 0; i < sourceOperands.Count; i++)
+			{
+				var source = sourceOperands[i];
+				var destination = destinationOperands[i];
+
+				if (MosaTypeLayout.IsStoredOnStack(source.Type))
+				{
+					context.AppendInstruction(IRInstruction.MoveCompound, destination, source);
+				}
+				else
+				{
+					var moveInstruction = GetMoveInstruction(source.Type);
+					context.AppendInstruction(moveInstruction, destination, source);
+				}
+			}
 		}
 
 		/// <summary>
@@ -173,95 +190,29 @@ namespace Mosa.Compiler.Framework.Stages
 		{
 			for (var ctx = new Context(block); !ctx.IsBlockEndInstruction; ctx.GotoNext())
 			{
-				if (ctx.IsEmpty)
+				if (ctx.IsEmpty
+					|| ctx.IsBlockEndInstruction
+					|| ctx.IsBlockStartInstruction
+					|| ctx.Instruction == IRInstruction.Jmp)
 					continue;
 
-				if (ctx.IsBlockEndInstruction || ctx.IsBlockStartInstruction)
-					continue;
-
-				if (ctx.Instruction == IRInstruction.Jmp)
-					continue;
-
-				if (!(ctx.Instruction.FlowControl == FlowControl.ConditionalBranch || ctx.Instruction.FlowControl == FlowControl.UnconditionalBranch || ctx.Instruction.FlowControl == FlowControl.Return)
-					&& !(ctx.Instruction is BaseCILInstruction)
+				if (ctx.Instruction.FlowControl != FlowControl.ConditionalBranch
+					&& ctx.Instruction.FlowControl != FlowControl.UnconditionalBranch
+					&& ctx.Instruction.FlowControl != FlowControl.Return
 					&& ctx.Instruction != IRInstruction.ExceptionStart
-					&& ctx.Instruction != IRInstruction.FilterStart)
+					&& ctx.Instruction != IRInstruction.FilterStart
+					&& !(ctx.Instruction is BaseCILInstruction))
 					continue;
 
-				if (ctx.Instruction == IRInstruction.ExceptionStart || ctx.Instruction == IRInstruction.FilterStart)
+				AssignOperandsFromCILStack(ctx, operandStack);
+
+				if (ctx.Instruction != IRInstruction.ExceptionStart && ctx.Instruction != IRInstruction.FilterStart)
 				{
-					AssignOperandsFromCILStack(ctx, operandStack);
-					PushResultOperands(ctx, operandStack);
+					var cilInstruction = ctx.Instruction as BaseCILInstruction;
+					cilInstruction.Resolve(ctx, MethodCompiler);
 				}
-				else
-				{
-					AssignOperandsFromCILStack(ctx, operandStack);
-					(ctx.Instruction as BaseCILInstruction).Resolve(ctx, MethodCompiler);
-					PushResultOperands(ctx, operandStack);
-				}
-			}
-		}
 
-		/// <summary>
-		/// Creates the moves for incoming stack.
-		/// </summary>
-		/// <param name="operandStack">The operand stack.</param>
-		/// <returns></returns>
-		private Stack<Operand> CreateMovesForIncomingStack(BasicBlock block, Stack<Operand> operandStack)
-		{
-			var joinStack = new Stack<Operand>();
-
-			foreach (var operand in operandStack)
-			{
-				joinStack.Push(AllocateVirtualRegisterOrStackSlot(operand.Type));
-			}
-
-			foreach (var b in block.PreviousBlocks)
-			{
-				if (processed.Get(b.Sequence) && joinStack.Count > 0)
-				{
-					CreateOutgoingMoves(b, new Stack<Operand>(outgoingStack[b.Sequence]), new Stack<Operand>(joinStack));
-					outgoingStack[b.Sequence] = new Stack<Operand>(joinStack);
-				}
-				else if (joinStack.Count > 0)
-				{
-					scheduledMoves[b.Sequence] = new Stack<Operand>(joinStack);
-				}
-			}
-			return joinStack;
-		}
-
-		/// <summary>
-		/// Creates the outgoing moves.
-		/// </summary>
-		/// <param name="block">The block.</param>
-		/// <param name="operandStack">The operand stack.</param>
-		/// <param name="joinStack">The join stack.</param>
-		private void CreateOutgoingMoves(BasicBlock block, Stack<Operand> operandStack, Stack<Operand> joinStack)
-		{
-			var context = new Context(block.Last);
-
-			context.GotoPrevious();
-
-			while ((context.Instruction.FlowControl == FlowControl.ConditionalBranch || context.Instruction.FlowControl == FlowControl.UnconditionalBranch || context.Instruction.FlowControl == FlowControl.Return) || context.Instruction == IRInstruction.Jmp)
-			{
-				context.GotoPrevious();
-			}
-
-			while (operandStack.Count > 0)
-			{
-				var operand = operandStack.Pop();
-				var destination = joinStack.Pop();
-
-				if (StoreOnStack(operand.Type))
-				{
-					context.AppendInstruction(IRInstruction.MoveCompound, destination, operand);
-				}
-				else
-				{
-					var moveInstruction = GetMoveInstruction(destination.Type);
-					context.AppendInstruction(moveInstruction, destination, operand);
-				}
+				PushResultOperands(ctx, operandStack);
 			}
 		}
 
@@ -288,23 +239,19 @@ namespace Mosa.Compiler.Framework.Stages
 		/// <param name="currentStack">The current stack.</param>
 		private void PushResultOperands(Context ctx, Stack<Operand> currentStack)
 		{
-			if (ctx.Instruction != IRInstruction.ExceptionStart && ctx.Instruction != IRInstruction.FilterStart)
-				if (!(ctx.Instruction as BaseCILInstruction).PushResult)
-					return;
-
 			if (ctx.ResultCount == 0)
+				return;
+
+			if (ctx.Instruction != IRInstruction.ExceptionStart
+				&& ctx.Instruction != IRInstruction.FilterStart
+				&& !(ctx.Instruction as BaseCILInstruction).PushResult)
 				return;
 
 			currentStack.Push(ctx.Result);
 
-			if (ctx.Instruction is CIL.DupInstruction)
+			if (ctx.Instruction is DupInstruction)
 			{
 				currentStack.Push(ctx.Result);
-				if (dupNodes == null)
-				{
-					dupNodes = new List<InstructionNode>();
-				}
-
 				dupNodes.Add(ctx.Node);
 			}
 		}
@@ -314,12 +261,9 @@ namespace Mosa.Compiler.Framework.Stages
 		/// </summary>
 		private void RemoveDuplicateInstructions()
 		{
-			if (dupNodes == null)
-				return;
-
 			foreach (var node in dupNodes)
 			{
-				Debug.Assert(node.Instruction is CIL.DupInstruction);
+				Debug.Assert(node.Instruction is DupInstruction);
 				Debug.Assert(node.Result == node.Operand1);
 
 				node.Empty();

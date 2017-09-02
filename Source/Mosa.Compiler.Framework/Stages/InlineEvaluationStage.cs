@@ -7,7 +7,7 @@ using System.Diagnostics;
 namespace Mosa.Compiler.Framework.Stages
 {
 	/// <summary>
-	///
+	///Inline Evaluation Stage
 	/// </summary>
 	public class InlineEvaluationStage : BaseMethodCompilerStage
 	{
@@ -30,9 +30,10 @@ namespace Mosa.Compiler.Framework.Stages
 			MethodData.IsCILDecoded = (!method.IsLinkerGenerated && method.Code.Count > 0);
 			MethodData.HasLoops = false;
 			MethodData.IsPlugged = IsPlugged;
-			MethodData.IsVirtual = method.IsVirtual;
 			MethodData.HasDoNotInlineAttribute = false;
 			MethodData.HasAddressOfInstruction = false;
+			MethodData.IsVirtual = method.IsVirtual;
+			MethodData.IsDevirtualized = (method.IsVirtual && !TypeLayout.IsMethodOverridden(method));
 
 			int totalIRCount = 0;
 			int totalNonIRCount = 0;
@@ -110,6 +111,7 @@ namespace Mosa.Compiler.Framework.Stages
 
 			trace.Log("CanInline: " + MethodData.CanInline.ToString());
 			trace.Log("IsVirtual: " + MethodData.IsVirtual.ToString());
+			trace.Log("IsDevirtualized: " + MethodData.IsDevirtualized.ToString());
 			trace.Log("HasLoops: " + MethodData.HasLoops.ToString());
 			trace.Log("HasProtectedRegions: " + MethodData.HasProtectedRegions.ToString());
 			trace.Log("IRInstructionCount: " + MethodData.IRInstructionCount.ToString());
@@ -137,7 +139,7 @@ namespace Mosa.Compiler.Framework.Stages
 			//if (method.HasLoops)
 			//	return false;
 
-			if (method.IsVirtual)
+			if (method.IsVirtual && !method.IsDevirtualized)
 				return false;
 
 			// current implementation limitation - can't include methods with addressOf instruction
@@ -152,7 +154,8 @@ namespace Mosa.Compiler.Framework.Stages
 
 			var returnType = method.Method.Signature.ReturnType;
 
-			if (StoreOnStack(returnType) && !returnType.IsUI8 && !returnType.IsR8)
+			// FIXME: Add rational
+			if (MosaTypeLayout.IsStoredOnStack(returnType) && !returnType.IsUI8 && !returnType.IsR8)
 				return false;
 
 			return true;
@@ -180,7 +183,7 @@ namespace Mosa.Compiler.Framework.Stages
 
 					var newOperand = Operand.CreateVirtualRegister(operand.Type, -operand.Index);
 
-					var moveInstruction = StoreOnStack(newOperand.Type)
+					var moveInstruction = MosaTypeLayout.IsStoredOnStack(newOperand.Type)
 						? IRInstruction.MoveCompound
 						: GetMoveInstruction(newOperand.Type);
 
@@ -203,10 +206,11 @@ namespace Mosa.Compiler.Framework.Stages
 					if (node.IsEmpty)
 						continue;
 
-					var newNode = new InstructionNode(node.Instruction, node.OperandCount, node.ResultCount);
-					newNode.Size = node.Size;
-					newNode.ConditionCode = node.ConditionCode;
-
+					var newNode = new InstructionNode(node.Instruction, node.OperandCount, node.ResultCount)
+					{
+						Size = node.Size,
+						ConditionCode = node.ConditionCode
+					};
 					if (node.BranchTargets != null)
 					{
 						// copy targets
@@ -252,7 +256,7 @@ namespace Mosa.Compiler.Framework.Stages
 			{
 				foreach (var entry in map)
 				{
-					trace.Log(entry.Value.ToString() + " from: " + entry.Key.ToString());
+					trace.Log(entry.Value + " from: " + entry.Key);
 				}
 			}
 
@@ -264,9 +268,7 @@ namespace Mosa.Compiler.Framework.Stages
 			if (operand == null)
 				return null;
 
-			Operand mappedOperand;
-
-			if (map.TryGetValue(operand, out mappedOperand))
+			if (map.TryGetValue(operand, out Operand mappedOperand))
 			{
 				return mappedOperand;
 			}
@@ -283,7 +285,7 @@ namespace Mosa.Compiler.Framework.Stages
 				}
 				else if (operand.Name != null)
 				{
-					mappedOperand = Operand.CreateManagedSymbol(operand.Type, operand.Name);
+					mappedOperand = Operand.CreateSymbol(operand.Type, operand.Name);
 				}
 			}
 			else if (operand.IsParameter)

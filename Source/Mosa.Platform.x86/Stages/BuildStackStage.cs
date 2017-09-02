@@ -9,6 +9,7 @@ namespace Mosa.Platform.x86.Stages
 	/// <summary>
 	/// Completes the stack handling after register allocation
 	/// </summary>
+	/// <seealso cref="Mosa.Compiler.Framework.BaseMethodCompilerStage" />
 	public sealed class BuildStackStage : BaseMethodCompilerStage
 	{
 		protected override void Run()
@@ -16,7 +17,7 @@ namespace Mosa.Platform.x86.Stages
 			if (IsPlugged)
 				return;
 
-			Debug.Assert((MethodCompiler.StackSize % 4) == 0, @"Stack size of interrupt can't be divided by 4!!");
+			Debug.Assert((MethodCompiler.StackSize % 4) == 0, "Stack size of interrupt can't be divided by 4!!");
 
 			UpdatePrologue();
 			UpdateEpilogue();

@@ -30,9 +30,9 @@ namespace Mosa.CoolWorld.x86.HAL
 		IMemory IHardwareAbstraction.RequestPhysicalMemory(uint address, uint size)
 		{
 			// Map physical memory space to virtual memory space
-			for (uint at = address; at < address + size; address = address + 4096)
+			for (uint at = address; at < address + size; at = at + 4096)
 			{
-				PageTable.MapVirtualAddressToPhysical(address, address);
+				PageTable.MapVirtualAddressToPhysical(at, at);
 			}
 
 			return new Memory(address, size);

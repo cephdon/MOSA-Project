@@ -1,6 +1,7 @@
 ﻿// Copyright (c) MOSA Project. Licensed under the New BSD License.
 
 using Mosa.Compiler.Common;
+using Mosa.Compiler.Framework.CompilerStages;
 using Mosa.Compiler.Framework.IR;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -8,7 +9,7 @@ using System.Diagnostics;
 namespace Mosa.Compiler.Framework.Stages
 {
 	/// <summary>
-	///
+	/// Inline Stage
 	/// </summary>
 	public class InlineStage : BaseMethodCompilerStage
 	{
@@ -33,19 +34,22 @@ namespace Mosa.Compiler.Framework.Stages
 					if (node.IsEmpty)
 						continue;
 
-					if (node.Instruction != IRInstruction.Call)
+					if (node.Instruction != IRInstruction.CallStatic)
+						continue;
+
+					if (!node.Operand1.IsSymbol)
+						continue;
+
+					var invokedMethod = node.Operand1.Method;
+
+					if (invokedMethod == null)
 						continue;
 
 					nodes.Add(node);
 
-					if (node.InvokeMethod == null)
-						continue;
+					var invoked = MethodCompiler.Compiler.CompilerData.GetCompilerMethodData(invokedMethod);
 
-					Debug.Assert(node.InvokeMethod != null);
-
-					var invoked = MethodCompiler.Compiler.CompilerData.GetCompilerMethodData(node.InvokeMethod);
-
-					MethodData.Calls.AddIfNew(node.InvokeMethod);
+					MethodData.Calls.AddIfNew(invokedMethod);
 
 					invoked.AddCalledBy(MethodCompiler.Method);
 				}
@@ -58,12 +62,9 @@ namespace Mosa.Compiler.Framework.Stages
 
 			foreach (var node in nodes)
 			{
-				if (node.InvokeMethod == null)
-					continue;
+				var invokedMethod = node.Operand1.Method;
 
-				Debug.Assert(node.InvokeMethod != null);
-
-				var invoked = MethodCompiler.Compiler.CompilerData.GetCompilerMethodData(node.InvokeMethod);
+				var invoked = MethodCompiler.Compiler.CompilerData.GetCompilerMethodData(invokedMethod);
 
 				if (!invoked.CanInline)
 					continue;
@@ -80,11 +81,14 @@ namespace Mosa.Compiler.Framework.Stages
 				if (trace.Active)
 					trace.Log(invoked.Method.FullName);
 
-				//System.Diagnostics.Debug.WriteLine(MethodCompiler.Method.FullName);
-				//System.Diagnostics.Debug.WriteLine(" * " + invoked.Method.FullName);
-
 				Inline(node, blocks);
 			}
+
+			UpdateCounter("InlineStage.InlinedMethodCount", 1);
+			UpdateCounter("InlineStage.InlinedCallSiteCount", nodes.Count);
+
+			//UpdateCounter("InlineStage.Compiled", MethodData.CompileCount == 0 ? 1 : 0);
+			//UpdateCounter("InlineStage.Recompiled", MethodData.CompileCount > 1 ? 1 : 0);
 		}
 
 		protected void Inline(InstructionNode callNode, BasicBlocks blocks)
@@ -115,9 +119,12 @@ namespace Mosa.Compiler.Framework.Stages
 						continue;
 
 					if (node.Instruction == IRInstruction.Epilogue)
+					{
+						newBlock.BeforeLast.Insert(new InstructionNode(IRInstruction.Jmp, nextBlock));
 						continue;
+					}
 
-					if (node.Instruction == IRInstruction.Return)
+					if (node.Instruction == IRInstruction.SetReturn)
 					{
 						if (callNode.Result != null)
 						{
@@ -128,15 +135,14 @@ namespace Mosa.Compiler.Framework.Stages
 
 							newBlock.BeforeLast.Insert(moveNode);
 						}
-						newBlock.BeforeLast.Insert(new InstructionNode(IRInstruction.Jmp, nextBlock));
-
 						continue;
 					}
 
-					var newNode = new InstructionNode(node.Instruction, node.OperandCount, node.ResultCount);
-					newNode.Size = node.Size;
-					newNode.ConditionCode = node.ConditionCode;
-
+					var newNode = new InstructionNode(node.Instruction, node.OperandCount, node.ResultCount)
+					{
+						Size = node.Size,
+						ConditionCode = node.ConditionCode
+					};
 					if (node.BranchTargets != null)
 					{
 						// copy targets
@@ -247,9 +253,7 @@ namespace Mosa.Compiler.Framework.Stages
 			if (operand == null)
 				return null;
 
-			Operand mappedOperand;
-
-			if (map.TryGetValue(operand, out mappedOperand))
+			if (map.TryGetValue(operand, out Operand mappedOperand))
 			{
 				return mappedOperand;
 			}
@@ -266,7 +270,7 @@ namespace Mosa.Compiler.Framework.Stages
 				}
 				else if (operand.Name != null)
 				{
-					mappedOperand = Operand.CreateManagedSymbol(operand.Type, operand.Name);
+					mappedOperand = Operand.CreateSymbol(operand.Type, operand.Name);
 				}
 			}
 			else if (operand.IsParameter)

@@ -2,13 +2,12 @@
 
 using Mosa.Compiler.Common;
 using Mosa.Compiler.Framework.Analysis;
-using Mosa.Compiler.Framework.Stages;
+using Mosa.Compiler.Framework.CompilerStages;
 using Mosa.Compiler.Linker;
 using Mosa.Compiler.MosaTypeSystem;
 using Mosa.Compiler.Trace;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Mosa.Compiler.Framework
 {
@@ -43,6 +42,11 @@ namespace Mosa.Compiler.Framework
 		public Operand StackFrame;
 
 		/// <summary>
+		/// The stack frame
+		/// </summary>
+		public Operand StackPointer;
+
+		/// <summary>
 		/// The constant zero
 		/// </summary>
 		public Operand ConstantZero;
@@ -59,57 +63,57 @@ namespace Mosa.Compiler.Framework
 		/// <summary>
 		/// Gets the Architecture to compile for.
 		/// </summary>
-		public BaseArchitecture Architecture { get; private set; }
+		public BaseArchitecture Architecture { get; }
 
 		/// <summary>
 		/// Gets the linker used to resolve external symbols.
 		/// </summary>
-		public BaseLinker Linker { get; private set; }
+		public BaseLinker Linker { get; }
 
 		/// <summary>
 		/// Gets the method implementation being compiled.
 		/// </summary>
-		public MosaMethod Method { get; private set; }
+		public MosaMethod Method { get; }
 
 		/// <summary>
 		/// Gets the owner type of the method.
 		/// </summary>
-		public MosaType Type { get; private set; }
+		public MosaType Type { get; }
 
 		/// <summary>
 		/// Gets the basic blocks.
 		/// </summary>
 		/// <value>The basic blocks.</value>
-		public BasicBlocks BasicBlocks { get; private set; }
+		public BasicBlocks BasicBlocks { get; }
 
 		/// <summary>
 		/// Retrieves the compilation scheduler.
 		/// </summary>
 		/// <value>The compilation scheduler.</value>
-		public CompilationScheduler Scheduler { get; private set; }
+		public CompilationScheduler Scheduler { get; }
 
 		/// <summary>
 		/// Provides access to the pipeline of this compiler.
 		/// </summary>
-		public CompilerPipeline Pipeline { get; private set; }
+		public CompilerPipeline Pipeline { get; }
 
 		/// <summary>
 		/// Gets the type system.
 		/// </summary>
 		/// <value>The type system.</value>
-		public TypeSystem TypeSystem { get; private set; }
+		public TypeSystem TypeSystem { get; }
 
 		/// <summary>
 		/// Gets the type layout.
 		/// </summary>
 		/// <value>The type layout.</value>
-		public MosaTypeLayout TypeLayout { get; private set; }
+		public MosaTypeLayout TypeLayout { get; }
 
 		/// <summary>
 		/// Gets the compiler trace handle
 		/// </summary>
 		/// <value>The log.</value>
-		public CompilerTrace Trace { get; private set; }
+		public CompilerTrace Trace { get; }
 
 		/// <summary>
 		/// Gets the local variables.
@@ -119,18 +123,16 @@ namespace Mosa.Compiler.Framework
 		/// <summary>
 		/// Gets the assembly compiler.
 		/// </summary>
-		public BaseCompiler Compiler { get; private set; }
+		public BaseCompiler Compiler { get; }
 
 		/// <summary>
 		/// Gets the stack.
 		/// </summary>
-		public List<Operand> LocalStack { get; private set; }
+		public List<Operand> LocalStack { get; }
 
-		/// <value>
-		/// The size of the stack parameter.
-		/// </value>
-		public int StackParameterSize { get; set; }
-
+		/// <summary>
+		/// Gets or sets the size of the stack.
+		/// </summary>
 		/// <value>
 		/// The size of the stack memory.
 		/// </value>
@@ -139,17 +141,12 @@ namespace Mosa.Compiler.Framework
 		/// <summary>
 		/// Gets the virtual register layout.
 		/// </summary>
-		public VirtualRegisters VirtualRegisters { get; private set; }
-
-		/// <summary>
-		/// Gets the dominance analysis.
-		/// </summary>
-		public Dominance DominanceAnalysis { get; private set; }
+		public VirtualRegisters VirtualRegisters { get; }
 
 		/// <summary>
 		/// Gets the parameters.
 		/// </summary>
-		public Operand[] Parameters { get; private set; }
+		public Operand[] Parameters { get; }
 
 		/// <summary>
 		/// Gets the protected regions.
@@ -162,7 +159,7 @@ namespace Mosa.Compiler.Framework
 		/// <summary>
 		/// Gets a value indicating whether [plugged method].
 		/// </summary>
-		public MosaMethod PluggedMethod { get; private set; }
+		public MosaMethod PluggedMethod { get; }
 
 		/// <summary>
 		/// Gets a value indicating whether this method is plugged.
@@ -175,7 +172,7 @@ namespace Mosa.Compiler.Framework
 		/// <value>
 		/// The thread identifier.
 		/// </value>
-		public int ThreadID { get; private set; }
+		public int ThreadID { get; }
 
 		/// <summary>
 		/// Gets the method data.
@@ -183,7 +180,7 @@ namespace Mosa.Compiler.Framework
 		/// <value>
 		/// The method data.
 		/// </value>
-		public CompilerMethodData MethodData { get; private set; }
+		public CompilerMethodData MethodData { get; }
 
 		#endregion Properties
 
@@ -213,12 +210,11 @@ namespace Mosa.Compiler.Framework
 
 			ConstantZero = Operand.CreateConstant(TypeSystem, 0);
 			StackFrame = Operand.CreateCPURegister(TypeSystem.BuiltIn.Pointer, Architecture.StackFrameRegister);
-
+			StackPointer = Operand.CreateCPURegister(TypeSystem.BuiltIn.Pointer, Architecture.StackPointerRegister);
 			Parameters = new Operand[method.Signature.Parameters.Count + (method.HasThis || method.HasExplicitThis ? 1 : 0)];
-			VirtualRegisters = new VirtualRegisters(Architecture);
+			VirtualRegisters = new VirtualRegisters();
 			LocalVariables = emptyOperandList;
 			ThreadID = threadID;
-			DominanceAnalysis = new Dominance(Compiler.CompilerOptions.DominanceAnalysisFactory, BasicBlocks);
 			PluggedMethod = compiler.PlugSystem.GetPlugMethod(Method);
 			stop = false;
 
@@ -226,11 +222,31 @@ namespace Mosa.Compiler.Framework
 			MethodData.Counters.Clear();
 
 			EvaluateParameterOperands();
+
+			CalculateMethodParameterSize();
 		}
 
 		#endregion Construction
 
 		#region Methods
+
+		private void CalculateMethodParameterSize()
+		{
+			int stacksize = 0;
+
+			if (Method.HasThis)
+			{
+				stacksize = TypeLayout.NativePointerSize;
+			}
+
+			foreach (var parameter in Method.Signature.Parameters)
+			{
+				var size = parameter.ParameterType.IsValueType ? TypeLayout.GetTypeSize(parameter.ParameterType) : TypeLayout.NativePointerAlignment;
+				stacksize += Alignment.AlignUp(size, TypeLayout.NativePointerAlignment);
+			}
+
+			MethodData.ParameterStackSize = stacksize;
+		}
 
 		/// <summary>
 		/// Adds the stack local.
@@ -246,6 +262,7 @@ namespace Mosa.Compiler.Framework
 		/// Adds the stack local.
 		/// </summary>
 		/// <param name="type">The type.</param>
+		/// <param name="pinned">if set to <c>true</c> [pinned].</param>
 		/// <returns></returns>
 		public Operand AddStackLocal(MosaType type, bool pinned)
 		{
@@ -254,9 +271,17 @@ namespace Mosa.Compiler.Framework
 			return local;
 		}
 
-		private Operand SetStackParameter(int index, MosaType type, string name)
+		/// <summary>
+		/// Sets the stack parameter.
+		/// </summary>
+		/// <param name="index">The index.</param>
+		/// <param name="type">The type.</param>
+		/// <param name="name">The name.</param>
+		/// <param name="isThis">if set to <c>true</c> [is this].</param>
+		/// <returns></returns>
+		private Operand SetStackParameter(int index, MosaType type, string name, bool isThis)
 		{
-			var param = Operand.CreateStackParameter(type, index, name);
+			var param = Operand.CreateStackParameter(type, index, name, isThis);
 			Parameters[index] = param;
 			return param;
 		}
@@ -271,14 +296,14 @@ namespace Mosa.Compiler.Framework
 			if (Method.HasThis || Method.HasExplicitThis)
 			{
 				if (Type.IsValueType)
-					SetStackParameter(index++, Type.ToManagedPointer(), "this");
+					SetStackParameter(index++, Type.ToManagedPointer(), "this", true);
 				else
-					SetStackParameter(index++, Type, "this");
+					SetStackParameter(index++, Type, "this", true);
 			}
 
 			foreach (var parameter in Method.Signature.Parameters)
 			{
-				SetStackParameter(index++, parameter.ParameterType, parameter.Name);
+				SetStackParameter(index++, parameter.ParameterType, parameter.Name, false);
 			}
 
 			LayoutParameters();
@@ -288,15 +313,12 @@ namespace Mosa.Compiler.Framework
 		{
 			int returnSize = 0;
 
-			if (StoreOnStack(Method.Signature.ReturnType))
+			if (MosaTypeLayout.IsStoredOnStack(Method.Signature.ReturnType))
 			{
 				returnSize = TypeLayout.GetTypeSize(Method.Signature.ReturnType);
 			}
 
-			int size = LayoutParameters(Architecture.CallingConvention.OffsetOfFirstParameter + returnSize);
-
-			StackParameterSize = size;
-			TypeLayout.SetMethodParameterStackSize(Method, size);
+			LayoutParameters(Architecture.OffsetOfFirstParameter + returnSize);
 		}
 
 		private int LayoutParameters(int offsetOfFirst)
@@ -305,21 +327,11 @@ namespace Mosa.Compiler.Framework
 
 			foreach (var operand in Parameters)
 			{
-				int size, alignment;
-				Architecture.GetTypeRequirements(TypeLayout, operand.Type, out size, out alignment);
-
 				operand.Offset = offset;
 				operand.IsResolved = true;
 
-				//// adjust split children
-				//if (operand.Low != null)
-				//{
-				//	operand.Low.Offset = offset + (operand.Low.Offset - operand.Offset);
-				//	operand.High.Offset = offset + (operand.High.Offset - operand.Offset);
-				//}
-
-				size = Alignment.AlignUp(size, alignment);
-				offset = offset + size;
+				var size = GetReferenceOrTypeSize(operand.Type, true);
+				offset += size;
 			}
 
 			return offset;
@@ -382,7 +394,7 @@ namespace Mosa.Compiler.Framework
 		/// <returns></returns>
 		public Operand AllocateVirtualRegisterOrStackSlot(MosaType type)
 		{
-			if (StoreOnStack(type))
+			if (MosaTypeLayout.IsStoredOnStack(type))
 			{
 				return AddStackLocal(type);
 			}
@@ -405,7 +417,7 @@ namespace Mosa.Compiler.Framework
 			{
 				Operand operand = null;
 
-				if (!StoreOnStack(local.Type) && !local.IsPinned)
+				if (!MosaTypeLayout.IsStoredOnStack(local.Type) && !local.IsPinned)
 				{
 					var stacktype = local.Type.GetStackType();
 					operand = CreateVirtualRegister(stacktype);
@@ -416,6 +428,27 @@ namespace Mosa.Compiler.Framework
 				}
 
 				LocalVariables[index++] = operand;
+			}
+		}
+
+		/// <summary>
+		/// Gets the size of the reference or type.
+		/// </summary>
+		/// <param name="type">The type.</param>
+		/// <param name="aligned">if set to <c>true</c> [aligned].</param>
+		/// <returns></returns>
+		public int GetReferenceOrTypeSize(MosaType type, bool aligned)
+		{
+			if (type.IsValueType)
+			{
+				if (aligned)
+					return Alignment.AlignUp(TypeLayout.GetTypeSize(type), Architecture.NativeAlignment);
+				else
+					return TypeLayout.GetTypeSize(type);
+			}
+			else
+			{
+				return Architecture.NativeAlignment;
 			}
 		}
 
@@ -490,26 +523,6 @@ namespace Mosa.Compiler.Framework
 		public override string ToString()
 		{
 			return Method.ToString();
-		}
-
-		public bool StoreOnStack(MosaType type)
-		{
-			if (type.IsReferenceType)
-				return false;
-
-			if (type.IsUserValueType)
-			{
-				if (type.Fields != null)
-				{
-					var nonStaticFields = type.Fields.Where(x => !x.IsStatic).ToList();
-					if (nonStaticFields.Count == 1)
-					{
-						return nonStaticFields[0].FieldType.IsUserValueType;
-					}
-				}
-			}
-
-			return type.IsUserValueType;
 		}
 
 		#endregion Methods

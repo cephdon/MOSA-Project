@@ -62,7 +62,6 @@
     <Compile Include="UniqueQueue.cs" />
     <Compile Include="StringExtension.cs" />
   </ItemGroup>
-  <ItemGroup />
   <ItemGroup>
     <Reference Include="System" />
   </ItemGroup>

@@ -42,9 +42,18 @@ namespace Mosa.Utility.Launcher
 		{
 			var process = LaunchVM();
 
+			if (Options.LaunchMosaDebugger)
+			{
+				LaunchMosaDebugger();
+			}
 			if (Options.LaunchGDB)
 			{
 				LaunchGDB();
+			}
+			if (!Options.ExitOnLaunch)
+			{
+				var output = GetOutput(process);
+				AddOutput(output);
 			}
 
 			return process;
@@ -54,9 +63,9 @@ namespace Mosa.Utility.Launcher
 		{
 			switch (Options.Emulator)
 			{
-				case EmulatorType.Qemu: return LaunchQemu(!Options.ExitOnLaunch);
-				case EmulatorType.Bochs: return LaunchBochs(!Options.ExitOnLaunch);
-				case EmulatorType.VMware: return LaunchVMwarePlayer(!Options.ExitOnLaunch);
+				case EmulatorType.Qemu: return LaunchQemu(false);
+				case EmulatorType.Bochs: return LaunchBochs(false);
+				case EmulatorType.VMware: return LaunchVMwarePlayer(false);
 				default: throw new InvalidOperationException();
 			}
 		}
@@ -118,7 +127,7 @@ namespace Mosa.Utility.Launcher
 
 			var sb = new StringBuilder();
 
-			sb.AppendLine("megs: " + Options.MemoryInMB.ToString());
+			sb.AppendLine("megs: " + Options.EmulatorMemoryInMB.ToString());
 			sb.AppendLine("ata0: enabled=1,ioaddr1=0x1f0,ioaddr2=0x3f0,irq=14");
 			sb.AppendLine("cpuid: mmx=1,sep=1," + simd + "=sse4_2,apic=xapic,aes=1,movbe=1,xsave=1");
 			sb.AppendLine("boot: cdrom,disk");
@@ -157,7 +166,7 @@ namespace Mosa.Utility.Launcher
 			sb.AppendLine(".encoding = \"windows-1252\"");
 			sb.AppendLine("config.version = \"8\"");
 			sb.AppendLine("virtualHW.version = \"4\"");
-			sb.AppendLine("memsize = " + Quote(Options.MemoryInMB.ToString()));
+			sb.AppendLine("memsize = " + Quote(Options.EmulatorMemoryInMB.ToString()));
 
 			sb.AppendLine("displayName = \"MOSA - " + Path.GetFileNameWithoutExtension(Options.SourceFile) + "\"");
 			sb.AppendLine("guestOS = \"other\"");
@@ -191,14 +200,20 @@ namespace Mosa.Utility.Launcher
 			return LaunchApplication(AppLocations.VMwarePlayer, arg, getOutput);
 		}
 
+		private void LaunchMosaDebugger()
+		{
+			string arg = " -debugfile " + Path.Combine(Options.DestinationDirectory, Path.GetFileNameWithoutExtension(Options.SourceFile) + ".debug");
+			arg += " -port 1234";
+			arg += " -connect";
+			LaunchApplication("Mosa.Tool.GDBDebugger.exe", arg);
+		}
+
 		private void LaunchGDB()
 		{
 			var gdbscript = Path.Combine(Options.DestinationDirectory, Path.GetFileNameWithoutExtension(Options.SourceFile) + ".gdb");
 
 			string arg = " -d " + Quote(Options.DestinationDirectory);
-
 			arg = arg + " -s " + Quote(Path.Combine(Options.DestinationDirectory, Path.GetFileNameWithoutExtension(Options.SourceFile) + ".bin"));
-
 			arg = arg + " -x " + Quote(gdbscript);
 
 			var textSection = Linker.LinkerSections[(int)SectionKind.Text];

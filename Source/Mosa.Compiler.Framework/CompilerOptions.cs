@@ -8,11 +8,11 @@ using System.Collections.Generic;
 namespace Mosa.Compiler.Framework
 {
 	/// <summary>
-	///
+	/// Compiler Options
 	/// </summary>
 	public class CompilerOptions
 	{
-		private Dictionary<string, string> options = new Dictionary<string, string>();
+		private readonly Dictionary<string, string> options = new Dictionary<string, string>();
 
 		#region Properties
 
@@ -41,6 +41,12 @@ namespace Mosa.Compiler.Framework
 		/// </summary>
 		/// <value>The map file.</value>
 		public string MapFile { get; set; }
+
+		/// <summary>
+		/// Gets or sets the map file.
+		/// </summary>
+		/// <value>The map file.</value>
+		public string DebugFile { get; set; }
 
 		/// <summary>
 		/// Gets or sets a value indicating whether SSA is enabled.
@@ -97,12 +103,12 @@ namespace Mosa.Compiler.Framework
 		public bool EnableStaticAllocations { get; set; }
 
 		/// <summary>
-		/// Gets or sets the dominance analysis factory.
+		/// Gets or sets a value indicating whether [enable ir long operand conversion].
 		/// </summary>
 		/// <value>
-		/// The dominance analysis factory.
+		///   <c>true</c> if [enable ir long operand conversion]; otherwise, <c>false</c>.
 		/// </value>
-		public Func<IDominanceAnalysis> DominanceAnalysisFactory { get; set; }
+		public bool EnableIRLongOperand { get; set; }
 
 		/// <summary>
 		/// Gets or sets the block order analysis.
@@ -152,7 +158,7 @@ namespace Mosa.Compiler.Framework
 		/// <value>
 		/// <c>true</c> if [aggressive optimizations]; otherwise, <c>false</c>.
 		/// </value>
-		public bool TwoPassOptimizationStages { get; set; }
+		public bool TwoPassOptimization { get; set; }
 
 		/// <summary>
 		/// Gets or sets a value indicating whether [enable statistics].
@@ -200,7 +206,7 @@ namespace Mosa.Compiler.Framework
 
 			value = value.ToLower();
 
-			return (value.Contains("y") || value.Contains("t") || value.Contains("1"));
+			return value.Contains("y") || value.Contains("t") || value.Contains("1");
 		}
 
 		/// <summary>
@@ -216,9 +222,7 @@ namespace Mosa.Compiler.Framework
 			if (value == null)
 				return @default;
 
-			int val;
-
-			if (int.TryParse(value, out val))
+			if (int.TryParse(value, out int val))
 				return val;
 			else
 				return @default;
@@ -237,9 +241,7 @@ namespace Mosa.Compiler.Framework
 			if (value == null)
 				return @default;
 
-			int val;
-
-			if (int.TryParse(value, out val))
+			if (int.TryParse(value, out int val))
 				return val;
 			else
 				return @default;
@@ -255,15 +257,15 @@ namespace Mosa.Compiler.Framework
 			EnableSparseConditionalConstantPropagation = true;
 			EnableInlinedMethods = true;
 			BaseAddress = 0x00400000;
-			DominanceAnalysisFactory = delegate { return new SimpleFastDominance(); };
 			BlockOrderAnalysisFactory = delegate { return new LoopAwareBlockOrder(); };
 			EmitBinary = true;
 			InlinedIRMaximum = 20;
 			DebugRestrictOptimizationByCount = 0;
 			EmitSymbols = true;
 			EmitRelocations = true;
-			TwoPassOptimizationStages = false;
+			TwoPassOptimization = false;
 			EnableStatistics = true;
+			EnableIRLongOperand = false;
 		}
 	}
 }

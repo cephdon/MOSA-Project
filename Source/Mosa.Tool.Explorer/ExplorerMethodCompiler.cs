@@ -35,22 +35,20 @@ namespace Mosa.Tool.Explorer
 
 				(compilerOptions.EnableInlinedMethods) ? new InlineStage() : null,
 				(compilerOptions.EnableSSA) ? new EdgeSplitStage() : null,
-				(compilerOptions.EnableSSA) ? new PhiPlacementStage() : null,
 				(compilerOptions.EnableSSA) ? new EnterSSAStage() : null,
-
 				(compilerOptions.EnableSparseConditionalConstantPropagation && compilerOptions.EnableSSA) ? new SparseConditionalConstantPropagationStage() : null,
 				(compilerOptions.EnableIROptimizations) ? new IROptimizationStage() : null,
+				new LowerIRStage(),
 
-				//(compilerOptions.TwoPassOptimizationStages && compilerOptions.EnableOptimizations && compilerOptions.EnableSparseConditionalConstantPropagation && compilerOptions.EnableSSA) ? new SparseConditionalConstantPropagationStage() : null,
-				//(compilerOptions.TwoPassOptimizationStages && compilerOptions.EnableOptimizations && compilerOptions.EnableSparseConditionalConstantPropagation && compilerOptions.EnableSSA) ? new IROptimizationStage() : null,
+				(compilerOptions.EnableIRLongOperand && compiler.Architecture.NativePointerSize == 4) ? new LongOperandStage() : null,
 
-				(compilerOptions.EnableSSA) ? new LeaveSSA() : null,
+				(compilerOptions.TwoPassOptimization && compilerOptions.EnableIROptimizations && compilerOptions.EnableSparseConditionalConstantPropagation && compilerOptions.EnableSSA) ? new SparseConditionalConstantPropagationStage() : null,
+				(compilerOptions.TwoPassOptimization && compilerOptions.EnableIROptimizations && compilerOptions.EnableSparseConditionalConstantPropagation && compilerOptions.EnableSSA) ? new IROptimizationStage() : null,
+				(compilerOptions.EnableSSA) ? new LeaveSSAStage() : null,
 				new IRCleanupStage(),
-
 				(compilerOptions.EnableInlinedMethods) ? new InlineEvaluationStage() : null,
-
-				//new StopStage(),
-
+				new DevirtualizeCallStage(),
+				new CallStage(),
 				new PlatformStubStage(),
 				new PlatformEdgeSplitStage(),
 				new VirtualRegisterRenameStage(),
@@ -59,6 +57,7 @@ namespace Mosa.Tool.Explorer
 				new EmptyBlockRemovalStage(),
 				new BlockOrderingStage(),
 				new CodeGenerationStage(compilerOptions.EmitBinary),
+				new PreciseGCStage(),
 				new GraphVizStage(),
 				(compilerOptions.EmitBinary) ? new ProtectedRegionLayoutStage() : null,
 				(compilerOptions.EmitBinary) ? new DisassemblyStage() : null

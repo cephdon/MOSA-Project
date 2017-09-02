@@ -40,7 +40,7 @@ namespace Mosa.Platform.x64
 		/// <summary>
 		/// Specifies the architecture features to use in generated code.
 		/// </summary>
-		private ArchitectureFeatureFlags architectureFeatures;
+		private readonly ArchitectureFeatureFlags architectureFeatures;
 
 		/// <summary>
 		/// Initializes a new instance of the <see cref="Architecture"/> class.
@@ -99,7 +99,39 @@ namespace Mosa.Platform.x64
 		/// </summary>
 		public override Register StackPointerRegister
 		{
-			get { return null; /* GeneralPurposeRegister.ESP;*/ }
+			get { return null; /* GeneralPurposeRegister.EDX;*/ }
+		}
+
+		/// <summary>
+		/// Retrieves the scratch register of the x86.
+		/// </summary>
+		public override Register ScratchRegister
+		{
+			get { return null; /* TODO */}
+		}
+
+		/// <summary>
+		/// Gets the return32 bit register.
+		/// </summary>
+		public override Register Return32BitRegister
+		{
+			get { return null; /* TODO */}
+		}
+
+		/// <summary>
+		/// Gets the return64 bit register.
+		/// </summary>
+		public override Register Return64BitRegister
+		{
+			get { return null; /* TODO */}
+		}
+
+		/// <summary>
+		/// Gets the return floating point register.
+		/// </summary>
+		public override Register ReturnFloatingPointRegister
+		{
+			get { return null; /* TODO */}
 		}
 
 		/// <summary>
@@ -163,36 +195,10 @@ namespace Mosa.Platform.x64
 		/// <summary>
 		/// Extends the method compiler pipeline with x64 specific stages.
 		/// </summary>
-		/// <param name="methodCompilerPipeline">The method compiler pipeline to extend.</param>
-		public override void ExtendMethodCompilerPipeline(CompilerPipeline methodCompilerPipeline)
+		/// <param name="compilerPipeline">The method compiler pipeline to extend.</param>
+		public override void ExtendMethodCompilerPipeline(CompilerPipeline compilerPipeline)
 		{
 			// TODO
-		}
-
-		/// <summary>
-		/// Gets the type memory requirements.
-		/// </summary>
-		/// <param name="typeLayout">The type layouts.</param>
-		/// <param name="type">The signature type.</param>
-		/// <param name="size">Receives the memory size of the type.</param>
-		/// <param name="alignment">Receives alignment requirements of the type.</param>
-		public override void GetTypeRequirements(MosaTypeLayout typeLayout, MosaType type, out int size, out int alignment)
-		{
-			if (type.IsUI8 || type.IsR8 || !type.IsValueType || type.IsPointer)
-			{
-				size = 8;
-				alignment = 8;
-			}
-			else if (typeLayout.IsCompoundType(type))
-			{
-				size = typeLayout.GetTypeSize(type);
-				alignment = 8;
-			}
-			else
-			{
-				size = 4;
-				alignment = 4;
-			}
 		}
 
 		/// <summary>
@@ -249,13 +255,13 @@ namespace Mosa.Platform.x64
 		/// </summary>
 		/// <param name="compiler">The compiler.</param>
 		/// <param name="context">The context.</param>
+		/// <param name="destinationBase">The destination.</param>
 		/// <param name="destination">The destination.</param>
-		/// <param name="destinationOffset">The destination offset.</param>
+		/// <param name="sourceBase">The source.</param>
 		/// <param name="source">The source.</param>
-		/// <param name="sourceOffset">The source offset.</param>
 		/// <param name="size">The size.</param>
 		/// <exception cref="NotImplementCompilerException"></exception>
-		public override void InsertCompoundCopy(BaseMethodCompiler compiler, Context context, Operand destination, Operand destinationOffset, Operand source, Operand sourceOffset, int size)
+		public override void InsertCompoundCopy(BaseMethodCompiler compiler, Context context, Operand destinationBase, Operand destination, Operand sourceBase, Operand source, int size)
 		{
 			throw new NotImplementCompilerException();
 		}
@@ -276,50 +282,8 @@ namespace Mosa.Platform.x64
 		/// </summary>
 		/// <param name="context">The context.</param>
 		/// <param name="destination">The destination.</param>
-		/// <param name="source">The source.</param>
-		public override void InsertJumpInstruction(Context context, Operand destination)
-		{
-			throw new NotImplementCompilerException();
-		}
-
-		/// <summary>
-		/// Inserts the jump instruction.
-		/// </summary>
-		/// <param name="context">The context.</param>
-		/// <param name="Destination">The destination.</param>
-		public override void InsertJumpInstruction(Context context, BasicBlock Destination)
-		{
-			throw new NotImplementCompilerException();
-		}
-
-		/// <summary>
-		/// Inserts the call instruction.
-		/// </summary>
-		/// <param name="context">The context.</param>
-		/// <param name="source">The source.</param>
-		public override void InsertCallInstruction(Context context, Operand source)
-		{
-			throw new NotImplementCompilerException();
-		}
-
-		/// <summary>
-		/// Inserts the add instruction.
-		/// </summary>
-		/// <param name="context">The context.</param>
-		/// <param name="Destination">The destination.</param>
-		/// <param name="Source">The source.</param>
-		public override void InsertAddInstruction(Context context, Operand destination, Operand source1, Operand source2)
-		{
-			throw new NotImplementCompilerException();
-		}
-
-		/// <summary>
-		/// Inserts the sub instruction.
-		/// </summary>
-		/// <param name="context">The context.</param>
-		/// <param name="Destination">The destination.</param>
-		/// <param name="Source">The source.</param>
-		public override void InsertSubInstruction(Context context, Operand destination, Operand source1, Operand source2)
+		/// <exception cref="NotImplementCompilerException"></exception>
+		public override void InsertJumpInstruction(Context context, BasicBlock destination)
 		{
 			throw new NotImplementCompilerException();
 		}
